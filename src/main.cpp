@@ -1,16 +1,5 @@
-//Picture capturing function taken from
-//Rui Santos --  https://RandomNerdTutorials.com/esp32-cam-take-photo-save-microsd-card
 
-/*********
-In order to have operation of GPIO 4 (to control dehumidifier) the SD card is only mounted when needed and then unmounted after all file operations have been completed
-Similiarly the sensors are only mounted when needed.
-This has the advantage of making these parts hotswapable. Camera is not hotswappable lol
-
-  Tips for flashing
-   - GPIO 0 must be connected to GND to upload a sketch
-   - After connecting GPIO 0 to GND, press the ESP32-CAM on-board RESET button to put your board in flashing mode
-   - You may need to supply power to ESP board seperately 
-   - try to keep the same serial connection throughout flashing/ restarting
+/**********
 
 Hardware support and default pins
   * 1 PWM fan   12

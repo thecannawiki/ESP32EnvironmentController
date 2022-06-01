@@ -31,3 +31,4 @@ These are the default pins to connect the BME and SGP30 sensors as well as any o
 * The BME280 and SGP30 are both I2C devices that require 3.3v, GND and pin 21 for SDA and pin 22 for SCL
 * An external fan be controlled via a switching transistor and pin 12 (Tested at 12v)
 * A dehumidifier can be attached via a switching transistor on pin 13. Used with a transistor to press a momemary button on my dehumidifer. May not work with all dehumidifiers with modification.
+* A Neopixel LED can be connected to 5v and Pin 16 where it will act as a status indicator

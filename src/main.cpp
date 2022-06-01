@@ -26,14 +26,7 @@ Hardware support and default pins
 #include <Adafruit_NeoPixel.h>
 #include <ArduinoJson.h>
 
-//global objects
-WiFiMulti wifiMulti;
-AsyncWebServer server(80);
-Adafruit_NeoPixel pixels(1, 19, NEO_GRB + NEO_KHZ800);
-BME280 bme280;
-SGP30 sgp30;
-TaskHandle_t longPWMTaskHandle = NULL;
-TaskHandle_t LedAnimationTaskHandle = NULL;
+
 
 //global vals
 //hardware
@@ -47,7 +40,7 @@ bool heaterState = false;
 int dehumidifierControlPin = 13;
 int fanControlPin = 12;
 int heaterControlPin = 26;
-
+int neopixelPin = 19;
 int fanPower = 25;
 
 int minpercentvalue = 25; //min power percentage required to make fan spin
@@ -85,6 +78,16 @@ const int freq = 25000;
 const int fanPWMchannel = 0;
 const int resolution = 12;
 
+//global objects
+WiFiMulti wifiMulti;
+AsyncWebServer server(80);
+Adafruit_NeoPixel pixels(1, neopixelPin, NEO_GRB + NEO_KHZ800);
+BME280 bme280;
+SGP30 sgp30;
+TaskHandle_t longPWMTaskHandle = NULL;
+TaskHandle_t LedAnimationTaskHandle = NULL;
+
+int loopCounter =0;
 
 
 const char start_html[] PROGMEM = R"rawliteral(<!DOCTYPE HTML><html>
@@ -141,7 +144,7 @@ const char start_html[] PROGMEM = R"rawliteral(<!DOCTYPE HTML><html>
   </body>  
 </html>)rawliteral";
 
-//Function for debug
+//Functions for debug
 void scanForWifi(){
   Serial.print("wifi Scan start ... ");
   int n = WiFi.scanNetworks();
@@ -153,18 +156,6 @@ void scanForWifi(){
     Serial.println(WiFi.RSSI(i));
   }
   Serial.println();
-}
-
-
-
-bool refreshNetworkTime(bool setLastCapture){
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Failed to obtain time");
-    return false;
-  }
-  
-  return true;
 }
 
 void i2cScan(){
@@ -206,6 +197,19 @@ void i2cScan(){
 }
 
 
+bool refreshNetworkTime(){
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return false;
+  }
+  
+  return true;
+}
+
+
+
+
 void initSensors(){
   //Wire.begin(13, 12);               //SDA orange, SCL purple      // Default is SDA 14, SCL 15
   bme280.setI2CAddress(0x76);
@@ -228,7 +232,7 @@ void initSensors(){
 }
 
 
-void  getSensorReadings(){
+void getSensorReadings(){
   //First 15 readings from SGP30 will be
   //CO2: 400 ppm  TVOC: 0 ppb as it warms up
   //bme280.setI2CAddress
@@ -270,10 +274,6 @@ void UpdateSensorJson(){
   esp_task_wdt_reset();
 }
 
-void getSensorReadingsWeb(AsyncWebServerRequest *request){
-  UpdateSensorJson();
-  request->send_P(200, "application/json", sensorjson);
-}
 
 void pressDehumidifierButton(){
   pinMode(dehumidifierControlPin, OUTPUT);
@@ -284,12 +284,17 @@ void pressDehumidifierButton(){
   dehumidiferState = !dehumidiferState;
 }
 
+//Handlers for web requests
+
+void getSensorReadingsWeb(AsyncWebServerRequest *request){
+  UpdateSensorJson();
+  request->send_P(200, "application/json", sensorjson);
+}
+
 void pressDehumidifierButtonWeb(AsyncWebServerRequest *request){
   pressDehumidifierButton();
   request->send(200, "text/plain", "Dehumidifier switched");
 }
-
-
 
 void setUpperbound(AsyncWebServerRequest *request){
     int paramsNr = request->params();
@@ -331,15 +336,20 @@ void setLowerbound(AsyncWebServerRequest *request){
 void setPixelColor(uint32_t color){
   if(LED){
     pixels.setPixelColor(0, color);
-    pixels.show();   // Send the updated pixel colors
+    pixels.show();
   }
 }
 
+void setFanPower(int power){ /// 0-100
+  int powerVal = map(power, 0, 100, 0, 4095);
+  esp_task_wdt_reset();
+  ledcWrite(fanPWMchannel, powerVal);
+}
 
 void longPWMloop(void * parameter){
   Serial.println("started long PWM loop");
   int totalwidth = 50;
-  int oncount = (fanPower - 1)/ 2 + 1;
+  int oncount = (fanPower - 1)/ 2 + 1;      //sweet trick to devide and get an int
   int count = 0;
   //Serial.println(oncount);
   for(;;){ // infinite loop
@@ -348,10 +358,10 @@ void longPWMloop(void * parameter){
     }
     if(count < oncount){
       //Serial.println("long PWM loop on");
-      ledcWrite(fanPWMchannel, 4095);
+      setFanPower(100);
     } else {
       //Serial.println("long PWM loop off");
-      ledcWrite(fanPWMchannel, 0);
+      setFanPower(0);
     }
 
     count+=1;
@@ -385,32 +395,26 @@ void rbgloop(void * parameter){
 }
 
 void mqttconnectloop(void * parameter){
-  int i = 0;
+  bool col = true;
   for(;;){ // infinite loop
     
-    switch (i){
-      case 0:
-        setPixelColor(pixels.Color(92, 239, 255));
-        break;
-      case 1:
-        setPixelColor(pixels.Color(212, 248, 252));
-        break;
+    if (col){
+        setPixelColor(pixels.Color(14, 218, 240));
+      }else{
+        setPixelColor(pixels.Color(7, 50, 224));
     }
 
-    i++;
-    if (i>1){
-      i=0;
-    }
+    col = !col;
     vTaskDelay(1000);
   }
 }
 
 
 void flash3green(){
-  int delayTime = 400;
-  int onTime = 200;
+  int delayTime = 90;
+  int onTime = 100;
   setPixelColor(pixels.Color(0, 0, 0));
-  delay(onTime);
+  delay(400);
   setPixelColor(pixels.Color(0,255,0));
   delay(onTime);
   setPixelColor(pixels.Color(0, 0, 0));
@@ -424,23 +428,19 @@ void flash3green(){
   setPixelColor(pixels.Color(0, 0, 0));
 }
 
-void startLedrbgloop(){
+void startLedanimation(void (*func)(void *)){
   if(LedAnimationTaskHandle != NULL){
     vTaskDelete(LedAnimationTaskHandle);
   }
-  xTaskCreate(rbgloop, "rgbloop", 1000, &fanPower, 0, &LedAnimationTaskHandle);  
+  xTaskCreate(func, "loop", 1000, 0, 0, &LedAnimationTaskHandle);  
 }
-void startLedmqttloop(){
-  if(LedAnimationTaskHandle != NULL){
-    vTaskDelete(LedAnimationTaskHandle);
-  }
-  xTaskCreate(mqttconnectloop, "mqttloop", 1000, &fanPower, 0, &LedAnimationTaskHandle);  
-}
+
+
 
 
 
 void mqttreconnect() {    //TODO check mqtt stuff is defined
-  startLedmqttloop();
+  startLedanimation(mqttconnectloop);
   int errcount = 0;
   // Loop until we're reconnected
   while (!mqttclient.connected()) {
@@ -465,11 +465,11 @@ void mqttreconnect() {    //TODO check mqtt stuff is defined
       Serial.print(mqttclient.state());
       Serial.println(" try again in 5 seconds");
       errcount++;
-      if(errcount>5){
+      if(errcount>0){
         ESP.restart();
       }
-      // Wait 5 seconds before retrying
-      delay(5000);
+      // Wait 2 seconds before retrying
+      delay(2000);
       
     }
   }
@@ -497,11 +497,7 @@ void mqttPublishSensorData(){ //TODO check if mqtt in creds
   Serial.print("->");
 }
 
-void setFanPower(int power){ /// 0-100
-  int powerVal = map(power, 0, 100, 0, 4095);
-  esp_task_wdt_reset();
-  ledcWrite(fanPWMchannel, powerVal);
-}
+
 
 void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
   esp_task_wdt_reset();
@@ -647,7 +643,8 @@ void setup() {
     pixels.begin();
     pixels.setBrightness(30);
   }
-  startLedrbgloop();
+  startLedanimation(rbgloop);
+  //startLedrbgloop();
   
   ledcSetup(fanPWMchannel, freq, resolution);
   ledcAttachPin(fanControlPin, fanPWMchannel);
@@ -731,24 +728,28 @@ void loop() {
     setPixelColor(pixels.Color(0, 0, 0));
   }
 
-  for (unsigned long i = 0; i < THIRTY_MINS/sensorInterval; i++) {    //exit this loop every half an hour to take pics ~
-    mqttclient.loop();
 
-      if(!mqttclient.connected()){
-        mqttreconnect();
-      }
-      
-      getSensorReadings();
+  mqttclient.loop();
 
-      if(i%5 == 0){    //every sensorInterval * num seconds i%num
-        if(automaticDehumidifier){
-          operateDehumidifier();
-        }
-        
-        mqttPublishSensorData();
-      }
-
-
-    delay(sensorInterval);
+  if(!mqttclient.connected()){
+    mqttreconnect();
   }
+  
+  getSensorReadings();
+
+  if(loopCounter%5 == 0){    //every sensorInterval * num seconds i%num
+    if(automaticDehumidifier){
+      operateDehumidifier();
+    }
+    
+    mqttPublishSensorData();
+  }
+
+
+delay(sensorInterval);
+loopCounter++;
+if(loopCounter > 10){
+  loopCounter = 0;
+}
+
 }

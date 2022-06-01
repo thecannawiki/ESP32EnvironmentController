@@ -3,6 +3,7 @@ An environment (Temperature, humidity, Co2) controller for ESP32
 
 Feature list:
 * Post live data to MQTT server
+* Sensor data retriveable via HTTP
 * Control fan speed and dehumidifer state remotely (Can also control other appliances)
 * Compatibility with Node-red dashboard to display graphs of temperature, humidity, VPD, co2 levels and state of appliances being controlled.
 

@@ -1,4 +1,3 @@
-
 /**********
 
 Hardware support and default pins
@@ -25,7 +24,6 @@ Hardware support and default pins
 #include <WiFiClientSecure.h>
 #include <Adafruit_NeoPixel.h>
 #include <ArduinoJson.h>
-
 
 
 //global vals
@@ -64,9 +62,7 @@ const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 0;
 const int   daylightOffset_sec = 3600;
 
-// Add your MQTT Broker IP address, example:
 WiFiClientSecure espClient;
-
 PubSubClient mqttclient(espClient);
 long lastMsg = 0;
 char msg[50];
@@ -251,7 +247,7 @@ void getSensorReadings(){
 
 
   if(!bmeMounted && !sgpMounted){return;}
-  Serial.println("reading sensors");
+  Serial.print("**");
   if(bmeMounted){
     humidity = bme280.readFloatHumidity();
     temp = bme280.readTempC();
@@ -436,17 +432,14 @@ void startLedanimation(void (*func)(void *)){
 }
 
 
-
-
-
 void mqttreconnect() {    //TODO check mqtt stuff is defined
-  startLedanimation(mqttconnectloop);
+  
   int errcount = 0;
   // Loop until we're reconnected
   while (!mqttclient.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect
-    String clientId = "esp32-cam";
+    String clientId = "esp32";
 
     if (mqttclient.connect(clientId.c_str(), MQTTUSER, MQTTPASS)) {
       Serial.println("connected");
@@ -465,7 +458,7 @@ void mqttreconnect() {    //TODO check mqtt stuff is defined
       Serial.print(mqttclient.state());
       Serial.println(" try again in 5 seconds");
       errcount++;
-      if(errcount>0){
+      if(errcount>1){
         ESP.restart();
       }
       // Wait 2 seconds before retrying
@@ -473,8 +466,7 @@ void mqttreconnect() {    //TODO check mqtt stuff is defined
       
     }
   }
-  vTaskDelete(LedAnimationTaskHandle);
-  setPixelColor(pixels.Color(0,0,0));
+  
 }
 
 void vibrationPattern(int length){
@@ -644,7 +636,7 @@ void setup() {
     pixels.setBrightness(30);
   }
   startLedanimation(rbgloop);
-  //startLedrbgloop();
+
   
   ledcSetup(fanPWMchannel, freq, resolution);
   ledcAttachPin(fanControlPin, fanPWMchannel);
@@ -676,8 +668,12 @@ void setup() {
   Serial.println(MQTTPORT);
   mqttclient.setServer(MQTTURL, MQTTPORT);
   mqttclient.setCallback(mqttMessageReceived);
+
+  startLedanimation(mqttconnectloop);
   mqttreconnect();
   mqttclient.publish("box/environ", "hi");
+  vTaskDelete(LedAnimationTaskHandle);
+  setPixelColor(pixels.Color(0,0,0));
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
  

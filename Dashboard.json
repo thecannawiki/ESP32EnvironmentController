@@ -20,24 +20,13 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 150,
+        "x": 90,
         "y": 180,
         "wires": [
             [
-                "86991f0964e90108",
-                "c17e7f1d49086e7f",
-                "d5c31c65e2b3e2fe",
-                "fc34d514afc4651b",
-                "7fbf4177de5abb5e",
-                "2079b9a05a59e9c0",
-                "10d1b97823cb29e9",
-                "29e0287693227af0",
-                "3fe3036e4da1774b",
-                "02b9363055f7cf39",
-                "fc92b3f74aed4f6a",
                 "2418909845efda7f",
-                "bbf8894732effdbe",
-                "185e3b9fcda98629"
+                "185e3b9fcda98629",
+                "bd1455aba8d69b12"
             ]
         ]
     },
@@ -46,13 +35,13 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "tempGetter",
-        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar json = {\"topic\":\"temp\",\n    \"payload\":p[\"temp\"]\n}\n\nreturn json\n",
+        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar json = {\"topic\":\"temp\",\n    \"payload\":p[\"T\"]\n}\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 450,
+        "x": 530,
         "y": 40,
         "wires": [
             [
@@ -89,7 +78,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 440,
+        "x": 520,
         "y": 100,
         "wires": [
             [
@@ -102,13 +91,13 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "humidityGetter",
-        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar json = {\"topic\":\"humidity\",\n    \"payload\":p[\"humidity\"]\n}\n\nreturn json\n",
+        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar json = {\"topic\":\"humidity\",\n    \"payload\":p[\"RH\"]\n}\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 460,
+        "x": 540,
         "y": 160,
         "wires": [
             [
@@ -130,7 +119,7 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1080,
+        "x": 1160,
         "y": 720,
         "wires": []
     },
@@ -139,13 +128,13 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "dehumidifierStateGetter",
-        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar json = {\"topic\":\"dehumidifierState\",\n    \"payload\":p[\"dehumidifierState\"]\n}\n\n\nreturn json\n",
+        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar json = {\"topic\":\"dehumidifierState\",\n    \"payload\":p[\"dehumidState\"]\n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 490,
+        "x": 570,
         "y": 240,
         "wires": [
             [
@@ -165,7 +154,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 500,
+        "x": 580,
         "y": 600,
         "wires": [
             [
@@ -187,8 +176,8 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1100,
-        "y": 340,
+        "x": 1180,
+        "y": 360,
         "wires": []
     },
     {
@@ -205,8 +194,8 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1110,
-        "y": 220,
+        "x": 1190,
+        "y": 240,
         "wires": []
     },
     {
@@ -214,13 +203,13 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "automatic dehumidifer control getter",
-        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar value =\"\"\nif (p[\"autoDehumidifier\"] == 0) {\n    value  = \"off\"\n}\nif (p[\"autoDehumidifier\"] == 1) {\n    value  = \"on\"\n}\n\n\n\nvar json = {\"topic\":\"autoDehumidifier\",\n    \"payload\": value\n}\n\n\nreturn json\n",
+        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar value =\"\"\nif (p[\"autoDehumid\"] == 0) {\n    value  = \"off\"\n}\nif (p[\"autoDehumid\"] == 1) {\n    value  = \"on\"\n}\n\n\n\nvar json = {\"topic\":\"autoDehumid\",\n    \"payload\": value\n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 520,
+        "x": 600,
         "y": 340,
         "wires": [
             [
@@ -254,7 +243,7 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 750,
+        "x": 830,
         "y": 260,
         "wires": [
             [
@@ -288,7 +277,7 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 830,
+        "x": 910,
         "y": 340,
         "wires": [
             [
@@ -315,8 +304,8 @@
         "max": "100",
         "step": 1,
         "className": "",
-        "x": 760,
-        "y": 780,
+        "x": 840,
+        "y": 760,
         "wires": [
             [
                 "5d73c6ba0deb6825"
@@ -337,7 +326,7 @@
         "format": "{{msg.payload}}",
         "layout": "row-spread",
         "className": "",
-        "x": 760,
+        "x": 840,
         "y": 620,
         "wires": []
     },
@@ -379,7 +368,7 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 710,
+        "x": 790,
         "y": 40,
         "wires": [
             []
@@ -423,7 +412,7 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 720,
+        "x": 800,
         "y": 100,
         "wires": [
             []
@@ -467,7 +456,7 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 740,
+        "x": 820,
         "y": 160,
         "wires": [
             []
@@ -511,7 +500,7 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 760,
+        "x": 840,
         "y": 220,
         "wires": [
             []
@@ -569,9 +558,9 @@
         "topicType": "msg",
         "min": "40",
         "max": "80",
-        "step": 1,
+        "step": "0.1",
         "className": "",
-        "x": 770,
+        "x": 850,
         "y": 500,
         "wires": [
             [
@@ -593,7 +582,7 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1060,
+        "x": 1140,
         "y": 500,
         "wires": []
     },
@@ -608,7 +597,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 470,
+        "x": 550,
         "y": 480,
         "wires": [
             [
@@ -627,7 +616,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 470,
+        "x": 550,
         "y": 540,
         "wires": [
             [
@@ -652,9 +641,9 @@
         "topicType": "msg",
         "min": "40",
         "max": "80",
-        "step": 1,
+        "step": "0.1",
         "className": "",
-        "x": 770,
+        "x": 850,
         "y": 560,
         "wires": [
             [
@@ -676,7 +665,7 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1060,
+        "x": 1140,
         "y": 560,
         "wires": []
     },
@@ -717,8 +706,8 @@
         "complete": "false",
         "statusVal": "",
         "statusType": "auto",
-        "x": 430,
-        "y": 840,
+        "x": 1350,
+        "y": 120,
         "wires": []
     },
     {
@@ -730,7 +719,7 @@
         "label": "Heater state",
         "tooltip": "",
         "group": "49b8362b1f102d88",
-        "order": 14,
+        "order": 15,
         "width": "6",
         "height": "2",
         "passthru": false,
@@ -748,7 +737,7 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 730,
+        "x": 810,
         "y": 400,
         "wires": [
             [
@@ -767,7 +756,7 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 470,
+        "x": 550,
         "y": 400,
         "wires": [
             [
@@ -790,7 +779,7 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1070,
+        "x": 1150,
         "y": 420,
         "wires": []
     },
@@ -806,7 +795,7 @@
         "complete": "false",
         "statusVal": "",
         "statusType": "auto",
-        "x": 730,
+        "x": 810,
         "y": 440,
         "wires": []
     },
@@ -815,13 +804,13 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "fan power getter",
-        "func": "var p = JSON.parse(msg.payload)\n\n\nvar json = {\"topic\":\"fanPower\",\n    \"payload\": p[\"fanPower\"] \n}\n\n\nreturn json\n",
+        "func": "var p = JSON.parse(msg.payload)\n\n\nvar json = {\"topic\":\"fanPower\",\n    \"payload\": p[\"fan\"] \n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 460,
+        "x": 540,
         "y": 680,
         "wires": [
             [
@@ -851,8 +840,8 @@
         "payloadType": "str",
         "topic": "topic",
         "topicType": "msg",
-        "x": 430,
-        "y": 1080,
+        "x": 450,
+        "y": 1020,
         "wires": [
             [
                 "b6eab7de040e4c93"
@@ -874,7 +863,7 @@
         "expiry": "",
         "broker": "67b58dab33c9118c",
         "x": 650,
-        "y": 1080,
+        "y": 1020,
         "wires": []
     },
     {
@@ -897,8 +886,8 @@
         "max": "100",
         "step": 1,
         "className": "",
-        "x": 760,
-        "y": 720,
+        "x": 840,
+        "y": 700,
         "wires": [
             [
                 "5d73c6ba0deb6825"
@@ -943,8 +932,8 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 760,
-        "y": 860,
+        "x": 840,
+        "y": 820,
         "wires": [
             []
         ]
@@ -954,13 +943,13 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "VPD getter",
-        "func": "var p = JSON.parse(msg.payload)\n\nvar h = p[\"humidity\"] /100\nvar T = p[\"temp\"]\n\n//node.warn([\"humdity=\",h]);\n//node.warn([\"temp=\",T]);\n\n\n\nvpl = 0.61078 * Math.exp(17.27 * T / (T + 237.3))\n\nvpa = 0.61078 * Math.exp(17.27 * T / (T + 237.3)) * h\n\n\nvpd = vpl - vpa\n\nvar json = {\"topic\":\"VPD\",\n    \"payload\": vpd \n}\n\n\nreturn json\n",
+        "func": "var p = JSON.parse(msg.payload)\n\nvar h = p[\"RH\"] /100\nvar T = p[\"T\"]\n\n//node.warn([\"humdity=\",h]);\n//node.warn([\"temp=\",T]);\n\n\n\nvpl = 0.61078 * Math.exp(17.27 * T / (T + 237.3))\n\nvpa = 0.61078 * Math.exp(17.27 * T / (T + 237.3)) * h\n\n\nvpd = vpl - vpa\n\nvar json = {\"topic\":\"VPD\",\n    \"payload\": vpd\n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 450,
+        "x": 530,
         "y": 740,
         "wires": [
             [
@@ -974,7 +963,7 @@
         "z": "26da8ec8a60a9d75",
         "name": "VPDChart",
         "group": "49b8362b1f102d88",
-        "order": 14,
+        "order": 16,
         "width": "11",
         "height": "5",
         "label": "VPD",
@@ -1006,8 +995,8 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 740,
-        "y": 920,
+        "x": 820,
+        "y": 880,
         "wires": [
             []
         ]
@@ -1037,8 +1026,8 @@
         "z": "26da8ec8a60a9d75",
         "name": "Reset charts",
         "group": "49b8362b1f102d88",
-        "order": 15,
-        "width": "12",
+        "order": 17,
+        "width": "18",
         "height": "5",
         "label": "Resets",
         "chartType": "line",
@@ -1047,9 +1036,9 @@
         "interpolate": "linear",
         "nodata": "",
         "dot": false,
-        "ymin": "-1",
+        "ymin": "0",
         "ymax": "1",
-        "removeOlder": 1,
+        "removeOlder": "2",
         "removeOlderPoints": "",
         "removeOlderUnit": "3600",
         "cutout": 0,
@@ -1069,10 +1058,194 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 250,
-        "y": 780,
+        "x": 190,
+        "y": 740,
         "wires": [
             []
+        ]
+    },
+    {
+        "id": "2677472d112fdc1c",
+        "type": "ui_numeric",
+        "z": "26da8ec8a60a9d75",
+        "name": "Target Vpd",
+        "label": "Target VPD",
+        "tooltip": "",
+        "group": "49b8362b1f102d88",
+        "order": 18,
+        "width": "6",
+        "height": "2",
+        "wrap": true,
+        "passthru": false,
+        "topic": "topic",
+        "topicType": "msg",
+        "format": "{{value}}",
+        "min": "0.5",
+        "max": "1.6",
+        "step": "0.1",
+        "className": "",
+        "x": 830,
+        "y": 940,
+        "wires": [
+            [
+                "d48c98512a9cbbf9"
+            ]
+        ]
+    },
+    {
+        "id": "d48c98512a9cbbf9",
+        "type": "mqtt out",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "topic": "box/control/targetVpd",
+        "qos": "",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "67b58dab33c9118c",
+        "x": 1160,
+        "y": 940,
+        "wires": []
+    },
+    {
+        "id": "976d97f1993b16a4",
+        "type": "ui_switch",
+        "z": "26da8ec8a60a9d75",
+        "name": "auto vpd switch",
+        "label": "auto Vpd Control",
+        "tooltip": "",
+        "group": "49b8362b1f102d88",
+        "order": 14,
+        "width": "6",
+        "height": "2",
+        "passthru": false,
+        "decouple": "true",
+        "topic": "topic",
+        "topicType": "msg",
+        "style": "",
+        "onvalue": "on",
+        "onvalueType": "str",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "off",
+        "offvalueType": "str",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 880,
+        "y": 300,
+        "wires": [
+            [
+                "58a69d33dceb6b59"
+            ]
+        ]
+    },
+    {
+        "id": "7d4499b1d1f43b66",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "auto vpd dehumidifer control getter",
+        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar value =\"\"\nif (p[\"autoVpd\"] == 0) {\n    value  = \"off\"\n}\nif (p[\"autoVpd\"] == 1) {\n    value  = \"on\"\n}\n\n\n\nvar json = {\"topic\":\"autoVpd\",\n    \"payload\": value\n}\n\n\nreturn json\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 600,
+        "y": 300,
+        "wires": [
+            [
+                "976d97f1993b16a4"
+            ]
+        ]
+    },
+    {
+        "id": "58a69d33dceb6b59",
+        "type": "mqtt out",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "topic": "box/control/dehumidifier/autoVpd",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "67b58dab33c9118c",
+        "x": 1200,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "bd1455aba8d69b12",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "reset catcher",
+        "func": "if(msg.payload == \"hi\"){\n    return;\n}\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 270,
+        "y": 180,
+        "wires": [
+            [
+                "10d1b97823cb29e9",
+                "3fe3036e4da1774b",
+                "86991f0964e90108",
+                "c17e7f1d49086e7f",
+                "d5c31c65e2b3e2fe",
+                "fc34d514afc4651b",
+                "7d4499b1d1f43b66",
+                "2079b9a05a59e9c0",
+                "02b9363055f7cf39",
+                "29e0287693227af0",
+                "7fbf4177de5abb5e",
+                "fc92b3f74aed4f6a",
+                "bbf8894732effdbe",
+                "1eb8e6edb9e96d86"
+            ]
+        ]
+    },
+    {
+        "id": "e7c49100f19e6aab",
+        "type": "debug",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1150,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "1eb8e6edb9e96d86",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "targetVPD getter",
+        "func": "var p = JSON.parse(msg.payload)\n\n\nvar json = {\"topic\":\"targetVPD\",\n    \"payload\": p[\"targetVpd\"]\n}\n\n\nreturn json\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 570,
+        "y": 940,
+        "wires": [
+            [
+                "2677472d112fdc1c"
+            ]
         ]
     },
     {

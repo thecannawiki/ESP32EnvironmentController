@@ -49,11 +49,11 @@ float temp = 0;
 float humidity = 0;
 float co2 = 0;
 float tvoc = 0;
-int upperHumidityBound = 70;
-int lowerHumidityBound = 60;
+float upperHumidityBound = 70.0f;
+float lowerHumidityBound = 60.0f;
 float targetVpd = 1.0f;
 int sensorInterval = 2000;
-char sensorjson[240];   //There is a max size u can send to MQTT broker
+char sensorjson[230];   //There is a max size u can send to MQTT broker
 
 //time
 const unsigned long THIRTY_MINS = 30*60*1000UL;
@@ -66,7 +66,6 @@ const int   daylightOffset_sec = 3600;
 long lastMsg = 0;
 char msg[50];
 int value = 0;
-
 
 // setting PWM properties
 const int freq = 25000;
@@ -84,7 +83,7 @@ TaskHandle_t LedAnimationTaskHandle = NULL;
 WiFiClientSecure espClient;
 PubSubClient mqttclient(espClient);
 
-int loopCounter =0;
+int loopCounter = 0;
 bool setupReceived = false;
 
 
@@ -231,7 +230,6 @@ void initSensors(){
 void getSensorReadings(){
   //First 15 readings from SGP30 will be
   //CO2: 400 ppm  TVOC: 0 ppb as it warms up
-
   if(!bmeMounted){
     if(bme280.beginI2C()){
       bmeMounted = true;
@@ -286,8 +284,8 @@ float calcVpd(){
 
 
 void UpdateSensorJson(){
-  snprintf_P(sensorjson, sizeof(sensorjson), PSTR("{\"temp\":%f, \"humidity\":%f, \"co2\":%f, \"tvoc\":%f, \"vpd\":%f , \"targetVpd\":%f, \"automaticVpd\":%d, \"lowerBound\":%i, \"upperBound\":%i, \"dehumidifierState\":%d, \"autoDehumidifier\":%d, \"fanPower\":%i }"), temp, humidity, co2, tvoc, calcVpd(), targetVpd, automaticVpd, lowerHumidityBound, upperHumidityBound, dehumidiferState, automaticDehumidifier, fanPower);
-  esp_task_wdt_reset();
+  snprintf_P(sensorjson, sizeof(sensorjson), PSTR("{\"T\":%f, \"RH\":%f, \"co2\":%f, \"tvoc\":%f, \"vpd\":%f, \"targetVpd\":%f, \"autoVpd\":%d, \"lowerBound\":%f, \"upperBound\":%f, \"dehumidState\":%d, \"autoDehumid\":%d, \"fan%\":%i}"), temp, humidity, co2, tvoc, calcVpd(), targetVpd, automaticVpd, lowerHumidityBound, upperHumidityBound, dehumidiferState, automaticDehumidifier, fanPower);
+  //esp_task_wdt_reset();
 }
 
 
@@ -320,7 +318,7 @@ void setUpperbound(AsyncWebServerRequest *request){
       if(paramName=="int" && paramValue.toInt()!=0){
         Serial.println("setting upper bound to");
         Serial.println(paramValue);
-        upperHumidityBound = paramValue.toInt();
+        upperHumidityBound = paramValue.toFloat();
         request->send(200, "text/plain", "upperBound set");
       } else {
         Serial.println("cast failed or int param not found");
@@ -338,7 +336,7 @@ void setLowerbound(AsyncWebServerRequest *request){
       if(paramName=="int" && paramValue.toInt()!=0){
         Serial.println("setting lower bound to");
         Serial.println(paramValue);
-        lowerHumidityBound = paramValue.toInt();
+        lowerHumidityBound = paramValue.toFloat();
         Serial.println(lowerHumidityBound);
         request->send(200, "text/plain", "lowerBound set");
       } else {
@@ -512,6 +510,8 @@ void mqttPublishSensorData(){ //TODO check if mqtt in creds
   bool success = mqttclient.publish("box/environ", sensorjson, true);
   if(success){
     Serial.print("->");
+  } else {
+    Serial.print("MQTT send failed with"); Serial.println(sensorjson);
   }
   //Serial.println("data published to MQTT server");
   
@@ -539,8 +539,8 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     long autodehumidifer = obj[String("autoDehumidifier")];
     long autoVpd = obj[String("autoVpd")];
     int fan = obj[String("fanPower")];
-    int lower = obj[String("lowerBound")];
-    int upper = obj[String("upperBound")];
+    float lower = obj[String("lowerBound")];
+    float upper = obj[String("upperBound")];
     int heater = obj[String("heaterState")];
     float tvpd = obj[String("targetVpd")];
 
@@ -579,7 +579,6 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
       1,                // Task priority
       &longPWMTaskHandle);       // Task handle
       
-
     } else {
       setFanPower(num);
     }
@@ -623,7 +622,7 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     }
 
     char data[50];
-    snprintf_P(data, sizeof(data), PSTR("{\"autoDehumidifier\":%d}"), automaticDehumidifier);
+    snprintf_P(data, sizeof(data), PSTR("{\"autoDehumid\":%d}"), automaticDehumidifier);
     mqttclient.publish("box/environ", data);
     return;
   }
@@ -638,25 +637,25 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     }
 
     char data[50];
-    snprintf_P(data, sizeof(data), PSTR("{\"automaticVpd\":%d}"), automaticVpd);
+    snprintf_P(data, sizeof(data), PSTR("{\"autoVpd\":%d}"), automaticVpd);
     mqttclient.publish("box/environ", data);
     return;
   }
 
   if (String(topic) == "box/control/dehumidifier/lower") {
-    int num = messageTemp.toInt();
+    float num = messageTemp.toFloat();
     lowerHumidityBound = num;
     char data[50];
-    snprintf_P(data, sizeof(data), PSTR("{\"lowerBound\":%d}"), lowerHumidityBound);
+    snprintf_P(data, sizeof(data), PSTR("{\"lowerBound\":%f}"), lowerHumidityBound);
     mqttclient.publish("box/environ", data);
     return;
   }
 
   if (String(topic) == "box/control/dehumidifier/upper") {
-    int num = messageTemp.toInt();
+    float num = messageTemp.toFloat();
     upperHumidityBound = num;
     char data[50];
-    snprintf_P(data, sizeof(data), PSTR("{\"upperBound\":%d}"), upperHumidityBound);
+    snprintf_P(data, sizeof(data), PSTR("{\"upperBound\":%f}"), upperHumidityBound);
     mqttclient.publish("box/environ", data);
     return;
   }
@@ -749,13 +748,13 @@ void operateDehumidifier(){   //if humidity too high turn off the dehumifier and
   if(bmeMounted !=(float)0 && humidity!=(float)0){
     Serial.println("checking dehumdifier");
     if(dehumidiferState){ //dehumidifier on
-        if(humidity <= (float)lowerHumidityBound){
+        if(humidity <= lowerHumidityBound){
           pressDehumidifierButton();
         } else{
           Serial.println("dehumdifier in the right state");
         }
     } else{ //dehumidifer off
-      if(humidity >= (float)upperHumidityBound){
+      if(humidity >= upperHumidityBound){
         pressDehumidifierButton();
       } else{
         Serial.println("dehumdifier in the right state");
@@ -790,10 +789,10 @@ void loop() {
 
   if(loopCounter%5 == 0){    //every sensorInterval * num seconds i%num
     if(automaticDehumidifier){
-      int hu  = int(calcTargetHumdityForVpd(targetVpd));
+      float hu  = calcTargetHumdityForVpd(targetVpd);
       Serial.println(hu);
-      lowerHumidityBound = hu -1;
-      upperHumidityBound = hu + 1;
+      lowerHumidityBound = hu - 1.0f;
+      upperHumidityBound = hu + 1.0f;
       operateDehumidifier();
     }
     
@@ -801,10 +800,10 @@ void loop() {
   }
 
 
-delay(sensorInterval);
-loopCounter++;
-if(loopCounter > 10){
-  loopCounter = 0;
-}
+  delay(sensorInterval);
+  loopCounter++;
+  if(loopCounter > 10){
+    loopCounter = 0;
+  }
 
 }

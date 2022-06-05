@@ -535,10 +535,10 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     DynamicJsonDocument doc(1024);
     deserializeJson(doc, messageTemp);
     JsonObject obj = doc.as<JsonObject>();
-    long lastdehumidiferState = obj[String("dehumidifierState")];
-    long autodehumidifer = obj[String("autoDehumidifier")];
+    long lastdehumidiferState = obj[String("dehumidState")];
+    long autodehumidifer = obj[String("autoDehumid")];
     long autoVpd = obj[String("autoVpd")];
-    int fan = obj[String("fanPower")];
+    int fan = obj[String("fan")];
     float lower = obj[String("lowerBound")];
     float upper = obj[String("upperBound")];
     int heater = obj[String("heaterState")];
@@ -584,7 +584,7 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     }
 
     char data[50];
-    snprintf_P(data, sizeof(data), PSTR("{\"fanPower\":%i}"), fanPower);
+    snprintf_P(data, sizeof(data), PSTR("{\"fan\":%i}"), fanPower);
     mqttclient.publish("box/environ", data);
     return;
   }

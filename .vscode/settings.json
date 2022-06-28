@@ -13,6 +13,7 @@
         "random": "cpp",
         "initializer_list": "cpp",
         "regex": "cpp",
-        "string_view": "cpp"
+        "string_view": "cpp",
+        "numeric": "cpp"
     }
 }

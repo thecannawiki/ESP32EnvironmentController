@@ -250,7 +250,7 @@ void getSensorReadings(){
 
 
   if(!bmeMounted && !sgpMounted){return;}
-  Serial.print("**");
+  
   if(bmeMounted){
     humidity = bme280.readFloatHumidity();
     temp = bme280.readTempC();
@@ -258,6 +258,8 @@ void getSensorReadings(){
       temp = -1;
       humidity = -1;
       bmeMounted = false;
+    }else{
+      Serial.print("* ");
     }
     if(temp >=30){
       heaterState = false;
@@ -268,6 +270,7 @@ void getSensorReadings(){
     sgp30.measureAirQuality();
     co2 = sgp30.CO2;
     tvoc = sgp30.TVOC;
+    Serial.print("÷ ");
   }
 }
 
@@ -326,7 +329,7 @@ void initNonVolitileMem(){
   //Load params from EEPROM
   preferences.begin("controller", false); 
   fanPower = preferences.getInt("fanPower", 30);
-  delay(200);
+
   //Serial.print("loaded fan speed "); Serial.println(fanPower);
   dehumidiferState = preferences.getBool("dehumidState", true);
   lowerHumidityBound = preferences.getFloat("lowerBound", 40.0f);
@@ -336,13 +339,13 @@ void initNonVolitileMem(){
   targetVpd = preferences.getFloat("tvpd", 1.0f);
   heaterState = preferences.getBool("headerState", false);
   UpdateSensorJson();
-  Serial.println("got the following from memory");
+  Serial.println("retrieved from NVM: ");
   Serial.println(sensorjson);
 }
 
-void saveToVolitileMem(){
+void saveToNVM(){
   preferences.end();
-  Serial.println("saved to mem");
+  Serial.print("§ ");
   preferences.begin("controller", false); 
 }
 
@@ -446,12 +449,12 @@ void freezeWatchdog(void * parameter){
   int lastloopCounter=0;
   while(true){
     lastloopCounter = loopCounter;
-    vTaskDelay(20000);
+    vTaskDelay(20000); //20 seconds
     if(loopCounter == lastloopCounter){
       Serial.println("Controller is frozen!!");
       ESP.restart();
     } else {
-      Serial.print("WD");
+      Serial.print(" WD ");
     }
   }
 }
@@ -480,9 +483,6 @@ void rbgloop(void * parameter){
     if (i>2){
       i=0;
     }
-    if(totalLoopCounter > 30){
-      ESP.restart();
-    }
     vTaskDelay(800);
   }
 }
@@ -492,9 +492,9 @@ void mqttconnectloop(void * parameter){
   for(;;){ // infinite loop
     
     if (col){
-        setPixelColor(pixels.Color(14, 218, 240));
+        setPixelColor(pixels.Color(14, 218, 240));  //blue
       }else{
-        setPixelColor(pixels.Color(7, 50, 224));
+        setPixelColor(pixels.Color(7, 50, 224));    //differnet blue
     }
 
     col = !col;
@@ -557,11 +557,11 @@ void mqttreconnect() {    //TODO check mqtt stuff is defined
       Serial.print(mqttclient.state());
       Serial.println(" try again in 5 seconds");
       errcount++;
-      if(errcount>1){
+      if(errcount>3){
         ESP.restart();
       }
-      // Wait 2 seconds before retrying
-      delay(2000);
+      // Wait 5 seconds before retrying
+      delay(5000);
       
     }
   }
@@ -582,7 +582,7 @@ void mqttPublishSensorData(){ //TODO check if mqtt in creds
   UpdateSensorJson();
   bool success = mqttclient.publish("box/environ", sensorjson, false);
   if(success){
-    Serial.print("->");
+    Serial.print("-> ");
   } else {
     Serial.print("MQTT send failed with"); Serial.println(sensorjson);
   }
@@ -610,12 +610,12 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     if(num<0){num = 0;}
     fanPower = num;
     preferences.putInt("fanPower", fanPower);
-    saveToVolitileMem();
+    saveToNVM();
 
     //kill previous fan task first
-    if(longPWMTaskHandle != NULL) {
+    //if(longPWMTaskHandle != NULL) {
             vTaskDelete(longPWMTaskHandle);
-    }
+    //}
 
     if(num< minpercentvalue){
         ///let the pwm loop task handle the fan
@@ -655,7 +655,7 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     if(num <= 2.0f && num >=0.4f){
       targetVpd = num;
       preferences.putFloat("tvpd", targetVpd);
-      saveToVolitileMem();
+      saveToNVM();
     }
     return;
   }
@@ -698,7 +698,7 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     float num = messageTemp.toFloat();
     lowerHumidityBound = num;
     preferences.putFloat("lowerBound", lowerHumidityBound);
-    saveToVolitileMem();
+    saveToNVM();
     char data[50];
     snprintf_P(data, sizeof(data), PSTR("{\"lowerBound\":%f}"), lowerHumidityBound);
     mqttclient.publish("box/environ", data);
@@ -710,7 +710,7 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     float num = messageTemp.toFloat();
     upperHumidityBound = num;
     preferences.putFloat("upperBound", upperHumidityBound);
-    saveToVolitileMem();
+    saveToNVM();
     char data[50];
     snprintf_P(data, sizeof(data), PSTR("{\"upperBound\":%f}"), upperHumidityBound);
     mqttclient.publish("box/environ", data);
@@ -728,7 +728,7 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
       digitalWrite(heaterControlPin, LOW); 
     }
     preferences.putBool("headerState", heaterState);
-    saveToVolitileMem();
+    saveToNVM();
     char data[50];
     snprintf_P(data, sizeof(data), PSTR("{\"heaterState\":%d}"), heaterState);
     mqttclient.publish("box/environ", data);
@@ -739,7 +739,7 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
 
 void operateDehumidifier(){   //if humidity too high turn off the dehumifier and vice-versa
   if(bmeMounted !=(float)0 && humidity!=(float)0){
-    Serial.print("O-");
+    Serial.print("O ");
     if(dehumidiferState){ //dehumidifier on
         if(humidity <= lowerHumidityBound){
           pressDehumidifierButton();
@@ -772,12 +772,12 @@ void mainloop(void * parameter){
         if(automaticVpd){
           float hu  = calcTargetHumidityForVpd(targetVpd);
           if(hu != -1){
-            Serial.println("recalcing RH bounds");
+            Serial.print("±RH");
             lowerHumidityBound = hu - 1.0f;
             upperHumidityBound = hu + 1.0f;
             preferences.putInt("lowerBound", lowerHumidityBound);
             preferences.putInt("higherBound", upperHumidityBound);
-            saveToVolitileMem();
+            saveToNVM();
           } 
         }
         operateDehumidifier();
@@ -796,15 +796,11 @@ void mainloop(void * parameter){
 }
 
 void mqttLoop(void * parameter){
-  //vTaskDelay(6000);
   while(true){
-    if(!mqttclient.connected()){
-      mqttreconnect();
+    if(mqttclient.connected()){
+     mqttclient.loop();
     }
-
-
-    mqttclient.loop();
-    vTaskDelay(4000);
+    vTaskDelay(3000);
   }
 }
 
@@ -817,6 +813,7 @@ void setup() {
   delay(1000);
   Wire.begin();
   Wire.setClock(400000);
+  xTaskCreate(freezeWatchdog, "watchdog", 1000, 0, 0, &freezewatchdogTaskHandle);
 
   if(LED){
     pixels.begin();
@@ -835,16 +832,16 @@ void setup() {
   
   //sensors
   initSensors();
-
+  //get NVM
   initNonVolitileMem();
- 
+  //Connect wifi
   wifiMulti.addAP(SSIDNAME, WIFIPASS);    //Add additional networks here
   wifiMulti.run();
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
     delay(2000);
   }
-
+  
   Serial.println("");
   Serial.print("Connected to: ");
   Serial.println(SSIDNAME);
@@ -861,8 +858,6 @@ void setup() {
 
   startLedanimation(mqttconnectloop);
   mqttreconnect();
-
-  
   mqttclient.publish("box/environ", "hi");
   vTaskDelete(LedAnimationTaskHandle);
   setPixelColor(pixels.Color(0,0,0));
@@ -880,7 +875,7 @@ void setup() {
 
   server.begin();
   
-  xTaskCreate(freezeWatchdog, "watchdog", 1000, 0, 0, &freezewatchdogTaskHandle);
+  
   //xTaskCreate(mqttLoop, "mqttHandler", 3000, 0, 0, &mqttTaskHandle);
   xTaskCreate(mainloop, "main", 9000, 0, 1, &mainLoopTaskHandle);
   flash3green();

@@ -51,6 +51,7 @@ try:
 
     # Strips the newline character
     for line in tqdm(Lines):
+        print(line)
         info = json.loads(line)
         if len(info) == 5:
             times.append(datetime.fromtimestamp(info["time"] / 1000.0))
@@ -61,10 +62,20 @@ try:
             temp.append(info["temp"])
             humidity.append(info["humidity"])
 
+    co2800count = 0
+    co2500count = 0
+    for i in co2:
+        if i >= 800:
+            co2800count+=1
+        if i >=500:
+            co2500count+=1
+
+    print("co2 > 800ppm ", str(co2800count/len(co2) * 100) + "%", "of the time")
+    print("co2 > 500ppm ", str(co2500count/len(co2) * 100) + "%", "of the time")
     print("")
     drawGraph(times, co2, "co2 (ppm)", "blue", "co2chart", 100.0)
-    drawGraph(times, temp, "Temperature (C)", "blue", "tempchart", 2.0)
-    drawGraph(times, humidity, "Humidity (RH %)", "blue", "humiditychart", 2.0)
+    drawGraph(times, temp, "Temperature (C)", "blue", "tempchart", 100.0)
+    drawGraph(times, humidity, "Humidity (RH %)", "blue", "humiditychart", 100.0)
 
 except Exception as e:
     print(e)

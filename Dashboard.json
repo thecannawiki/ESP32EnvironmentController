@@ -26,7 +26,8 @@
             [
                 "2418909845efda7f",
                 "185e3b9fcda98629",
-                "bd1455aba8d69b12"
+                "bd1455aba8d69b12",
+                "e7c49100f19e6aab"
             ]
         ]
     },
@@ -72,7 +73,7 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "co2getter",
-        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar json = {\"topic\":\"co2\",\n    \"payload\":p[\"co2\"]\n}\n\nreturn json\n",
+        "func": "\nvar p = JSON.parse(msg.payload)\n\nglobal.set(\"co2\",p[\"co2\"]);\n\nvar json = {\"topic\":\"co2\",\n    \"payload\":p[\"co2\"]\n}\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -112,7 +113,7 @@
         "name": "exhaust power control",
         "topic": "box/control/exhaust",
         "qos": "",
-        "retain": "true",
+        "retain": "false",
         "respTopic": "",
         "contentType": "",
         "userProps": "",
@@ -128,7 +129,7 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "dehumidifierStateGetter",
-        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar json = {\"topic\":\"dehumidifierState\",\n    \"payload\":p[\"dehumidState\"]\n}\n\n\nreturn json\n",
+        "func": "var p = JSON.parse(msg.payload)\n\nvar value =\"\"\nif (p[\"dehumidState\"]) {\n    value  = 1\n}\nelse{\n    value  = 0\n}\n\n\n\nvar json = {\"topic\":\"dehumidifierState\",\n    \"payload\":value\n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -155,7 +156,7 @@
         "finalize": "",
         "libs": [],
         "x": 580,
-        "y": 600,
+        "y": 640,
         "wires": [
             [
                 "c24c2453aa21d0fa"
@@ -203,7 +204,7 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "automatic dehumidifer control getter",
-        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar value =\"\"\nif (p[\"autoDehumid\"] == 0) {\n    value  = \"off\"\n}\nif (p[\"autoDehumid\"] == 1) {\n    value  = \"on\"\n}\n\n\n\nvar json = {\"topic\":\"autoDehumid\",\n    \"payload\": value\n}\n\n\nreturn json\n",
+        "func": "\nvar p = JSON.parse(msg.payload)\nif(!p.hasOwnProperty(\"autoDehumid\")){return;}\n\nvar value =\"\"\nif (p[\"autoDehumid\"]) {\n    value  = \"on\"\n}\nelse {\n    value  = \"off\"\n}\n\n\n\nvar json = {\"topic\":\"autoDehumid\",\n    \"payload\": value\n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -243,7 +244,7 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 830,
+        "x": 850,
         "y": 260,
         "wires": [
             [
@@ -277,8 +278,8 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 910,
-        "y": 340,
+        "x": 930,
+        "y": 360,
         "wires": [
             [
                 "40aff9772cd6b366"
@@ -304,7 +305,7 @@
         "max": "100",
         "step": 1,
         "className": "",
-        "x": 840,
+        "x": 860,
         "y": 760,
         "wires": [
             [
@@ -326,8 +327,8 @@
         "format": "{{msg.payload}}",
         "layout": "row-spread",
         "className": "",
-        "x": 840,
-        "y": 620,
+        "x": 860,
+        "y": 640,
         "wires": []
     },
     {
@@ -368,7 +369,7 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 790,
+        "x": 810,
         "y": 40,
         "wires": [
             []
@@ -391,7 +392,7 @@
         "nodata": "",
         "dot": false,
         "ymin": "400",
-        "ymax": "2000",
+        "ymax": "1500",
         "removeOlder": "2",
         "removeOlderPoints": "",
         "removeOlderUnit": "3600",
@@ -412,7 +413,7 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 800,
+        "x": 820,
         "y": 100,
         "wires": [
             []
@@ -456,7 +457,7 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 820,
+        "x": 840,
         "y": 160,
         "wires": [
             []
@@ -500,7 +501,7 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 840,
+        "x": 860,
         "y": 220,
         "wires": [
             []
@@ -516,7 +517,7 @@
         "createDir": true,
         "overwriteFile": "false",
         "encoding": "none",
-        "x": 150,
+        "x": 270,
         "y": 500,
         "wires": [
             []
@@ -527,13 +528,13 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "environ trimmer",
-        "func": "var p = JSON.parse(msg.payload)\n\nvar time = new Date();\n\nvar json = {\"time\":time.getTime(),\n    \"temp\":p[\"temp\"], \"humidity\":p[\"humidity\"], \"co2\":p[\"co2\"]\n}\n\nmsg.payload = json;\n\nreturn msg;\n",
+        "func": "var p = JSON.parse(msg.payload)\n\nvar time = new Date();\n\nvar json = {\"time\":time.getTime(),\n    \"temp\":p[\"T\"], \"humidity\":p[\"RH\"], \"co2\":p[\"co2\"], \"vpd\":p[\"vpd\"]\n}\n\nmsg.payload = json;\n\nreturn msg;\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 160,
+        "x": 260,
         "y": 440,
         "wires": [
             [
@@ -560,8 +561,8 @@
         "max": "80",
         "step": "0.1",
         "className": "",
-        "x": 850,
-        "y": 500,
+        "x": 870,
+        "y": 520,
         "wires": [
             [
                 "880f5debc7625235"
@@ -575,7 +576,7 @@
         "name": "send lowbound",
         "topic": "box/control/dehumidifier/lower",
         "qos": "",
-        "retain": "true",
+        "retain": "false",
         "respTopic": "",
         "contentType": "",
         "userProps": "",
@@ -598,7 +599,7 @@
         "finalize": "",
         "libs": [],
         "x": 550,
-        "y": 480,
+        "y": 520,
         "wires": [
             [
                 "0ea4accf39062632"
@@ -617,7 +618,7 @@
         "finalize": "",
         "libs": [],
         "x": 550,
-        "y": 540,
+        "y": 560,
         "wires": [
             [
                 "fb15a0964089df98"
@@ -644,7 +645,7 @@
         "step": "0.1",
         "className": "",
         "x": 850,
-        "y": 560,
+        "y": 580,
         "wires": [
             [
                 "f259309163901899"
@@ -658,7 +659,7 @@
         "name": "send highbound",
         "topic": "box/control/dehumidifier/upper",
         "qos": "",
-        "retain": "true",
+        "retain": "false",
         "respTopic": "",
         "contentType": "",
         "userProps": "",
@@ -686,7 +687,7 @@
         "drop": true,
         "allowrate": false,
         "outputs": 1,
-        "x": 160,
+        "x": 260,
         "y": 380,
         "wires": [
             [
@@ -706,7 +707,7 @@
         "complete": "false",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1350,
+        "x": 1110,
         "y": 120,
         "wires": []
     },
@@ -714,7 +715,6 @@
         "id": "04406821e76d86e2",
         "type": "ui_switch",
         "z": "26da8ec8a60a9d75",
-        "d": true,
         "name": "",
         "label": "Heater state",
         "tooltip": "",
@@ -737,8 +737,8 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 810,
-        "y": 400,
+        "x": 830,
+        "y": 420,
         "wires": [
             [
                 "1baefbd031bed57d"
@@ -757,7 +757,7 @@
         "finalize": "",
         "libs": [],
         "x": 550,
-        "y": 400,
+        "y": 420,
         "wires": [
             [
                 "04406821e76d86e2",
@@ -772,7 +772,7 @@
         "name": "",
         "topic": "box/control/heater",
         "qos": "",
-        "retain": "true",
+        "retain": "false",
         "respTopic": "",
         "contentType": "",
         "userProps": "",
@@ -795,8 +795,8 @@
         "complete": "false",
         "statusVal": "",
         "statusType": "auto",
-        "x": 810,
-        "y": 440,
+        "x": 830,
+        "y": 480,
         "wires": []
     },
     {
@@ -811,7 +811,7 @@
         "finalize": "",
         "libs": [],
         "x": 540,
-        "y": 680,
+        "y": 700,
         "wires": [
             [
                 "15b87b99c0fefd4a",
@@ -824,24 +824,24 @@
         "id": "e9cf2082b06a64a3",
         "type": "ui_button",
         "z": "26da8ec8a60a9d75",
-        "name": "Vibe button",
+        "name": "Stir button",
         "group": "49b8362b1f102d88",
         "order": 2,
         "width": "12",
         "height": "1",
         "passthru": true,
-        "label": "Vibe",
+        "label": "Stir",
         "tooltip": "",
         "color": "",
         "bgcolor": "",
         "className": "",
         "icon": "",
-        "payload": "300",
+        "payload": "10000",
         "payloadType": "str",
         "topic": "topic",
         "topicType": "msg",
-        "x": 450,
-        "y": 1020,
+        "x": 430,
+        "y": 1140,
         "wires": [
             [
                 "b6eab7de040e4c93"
@@ -852,7 +852,7 @@
         "id": "b6eab7de040e4c93",
         "type": "mqtt out",
         "z": "26da8ec8a60a9d75",
-        "name": "Vibe",
+        "name": "Stir",
         "topic": "box/control/vibe",
         "qos": "",
         "retain": "false",
@@ -862,8 +862,8 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 650,
-        "y": 1020,
+        "x": 770,
+        "y": 1100,
         "wires": []
     },
     {
@@ -886,7 +886,7 @@
         "max": "100",
         "step": 1,
         "className": "",
-        "x": 840,
+        "x": 860,
         "y": 700,
         "wires": [
             [
@@ -932,7 +932,7 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 840,
+        "x": 860,
         "y": 820,
         "wires": [
             []
@@ -943,7 +943,7 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "VPD getter",
-        "func": "var p = JSON.parse(msg.payload)\n\nvar h = p[\"RH\"] /100\nvar T = p[\"T\"]\n\n//node.warn([\"humdity=\",h]);\n//node.warn([\"temp=\",T]);\n\n\n\nvpl = 0.61078 * Math.exp(17.27 * T / (T + 237.3))\n\nvpa = 0.61078 * Math.exp(17.27 * T / (T + 237.3)) * h\n\n\nvpd = vpl - vpa\n\nvar json = {\"topic\":\"VPD\",\n    \"payload\": vpd\n}\n\n\nreturn json\n",
+        "func": "var p = JSON.parse(msg.payload)\n\nvar h = p[\"RH\"] /100\nvar T = p[\"T\"] *1\n\n//node.warn([\"humdity=\",h]);\n//node.warn([\"temp=\",T]);\n\n\n\nvpl = 0.61078 * Math.exp(17.27 * T / (T + 237.3))\n\nvpa = 0.61078 * Math.exp(17.27 * T / (T + 237.3)) * h\n\n\nvpd = vpl - vpa\n//node.warn(vpd)\n\nvar json = {\"topic\":\"VPD\",\n    \"payload\": vpd\n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -964,7 +964,7 @@
         "name": "VPDChart",
         "group": "49b8362b1f102d88",
         "order": 16,
-        "width": "11",
+        "width": "10",
         "height": "5",
         "label": "VPD",
         "chartType": "line",
@@ -995,8 +995,8 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 820,
-        "y": 880,
+        "x": 840,
+        "y": 860,
         "wires": [
             []
         ]
@@ -1012,8 +1012,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 190,
-        "y": 660,
+        "x": 110,
+        "y": 240,
         "wires": [
             [
                 "7843d0e0f6b4f696"
@@ -1026,8 +1026,8 @@
         "z": "26da8ec8a60a9d75",
         "name": "Reset charts",
         "group": "49b8362b1f102d88",
-        "order": 17,
-        "width": "18",
+        "order": 20,
+        "width": "9",
         "height": "5",
         "label": "Resets",
         "chartType": "line",
@@ -1038,7 +1038,7 @@
         "dot": false,
         "ymin": "0",
         "ymax": "1",
-        "removeOlder": "2",
+        "removeOlder": "12",
         "removeOlderPoints": "",
         "removeOlderUnit": "3600",
         "cutout": 0,
@@ -1058,8 +1058,8 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 190,
-        "y": 740,
+        "x": 110,
+        "y": 300,
         "wires": [
             []
         ]
@@ -1072,7 +1072,7 @@
         "label": "Target VPD",
         "tooltip": "",
         "group": "49b8362b1f102d88",
-        "order": 18,
+        "order": 17,
         "width": "6",
         "height": "2",
         "wrap": true,
@@ -1085,7 +1085,7 @@
         "step": "0.1",
         "className": "",
         "x": 830,
-        "y": 940,
+        "y": 920,
         "wires": [
             [
                 "d48c98512a9cbbf9"
@@ -1107,7 +1107,7 @@
         "expiry": "",
         "broker": "67b58dab33c9118c",
         "x": 1160,
-        "y": 940,
+        "y": 920,
         "wires": []
     },
     {
@@ -1136,7 +1136,7 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 880,
+        "x": 900,
         "y": 300,
         "wires": [
             [
@@ -1149,7 +1149,7 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "auto vpd dehumidifer control getter",
-        "func": "\nvar p = JSON.parse(msg.payload)\n\nvar value =\"\"\nif (p[\"autoVpd\"] == 0) {\n    value  = \"off\"\n}\nif (p[\"autoVpd\"] == 1) {\n    value  = \"on\"\n}\n\n\n\nvar json = {\"topic\":\"autoVpd\",\n    \"payload\": value\n}\n\n\nreturn json\n",
+        "func": "\nvar p = JSON.parse(msg.payload)\n\nif(!p.hasOwnProperty(\"autoVpd\")){return;}\n\nvar value =\"\"\nif (p[\"autoVpd\"]) {\n    value  = \"on\"\n}\nelse{\n    value  = \"off\"\n}\n\n//node.warn(\"got autoVpd is \"+ value)\n\nvar json = {\"topic\":\"autoVpd\",\n    \"payload\": value\n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -1186,7 +1186,7 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "reset catcher",
-        "func": "if(msg.payload == \"hi\"){\n    return;\n}\nreturn msg;",
+        "func": "if(msg.payload == \"hi\"){\n    return;\n} \nelse {\n    \n    global.set(\"lastpayload\",Date.now());\n}\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -1209,7 +1209,8 @@
                 "7fbf4177de5abb5e",
                 "fc92b3f74aed4f6a",
                 "bbf8894732effdbe",
-                "1eb8e6edb9e96d86"
+                "1eb8e6edb9e96d86",
+                "79817aeb50add8ba"
             ]
         ]
     },
@@ -1222,11 +1223,12 @@
         "tosidebar": true,
         "console": false,
         "tostatus": false,
-        "complete": "false",
+        "complete": "payload",
+        "targetType": "msg",
         "statusVal": "",
         "statusType": "auto",
-        "x": 1150,
-        "y": 60,
+        "x": 150,
+        "y": 40,
         "wires": []
     },
     {
@@ -1240,13 +1242,323 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 570,
-        "y": 940,
+        "x": 550,
+        "y": 920,
         "wires": [
             [
                 "2677472d112fdc1c"
             ]
         ]
+    },
+    {
+        "id": "626124e1112ff74b",
+        "type": "inject",
+        "z": "26da8ec8a60a9d75",
+        "name": "missing controller checker",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "60",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 160,
+        "y": 1020,
+        "wires": [
+            [
+                "9ef143a7d6578b99"
+            ]
+        ]
+    },
+    {
+        "id": "e03ff1ccdfb68112",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "Timediff",
+        "func": "var lastpayload = global.get(\"lastpayload\");\n\n\ndiff = Date.now() - lastpayload\nnode.warn(\"last communication from controller was @ \" + new Date(lastpayload) +\"\\n\"+ diff /1000 + \" seconds ago \")\n\nmaxTimeNoCommunicationMins = 20\n\nmsg.payload = {}\nmsg.payload.chatId = msg.TelegramClientID\nmsg.payload.type = \"message\"\nmsg.payload.content = \"hello from node-red!\"\n\n\nif( diff /1000 < maxTimeNoCommunicationMins* 60 ){\n    return 0;\n} else {\n    \n    msg.payload.content = \"No response from grow controller for \"+maxTimeNoCommunicationMins+\" mins\"\n}\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 600,
+        "y": 1020,
+        "wires": [
+            [
+                "81fdec7aaed70467"
+            ]
+        ]
+    },
+    {
+        "id": "cb11736175da6329",
+        "type": "debug",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 750,
+        "y": 1260,
+        "wires": []
+    },
+    {
+        "id": "315891178173b158",
+        "type": "telegram sender",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "bot": "353ee16983fbc803",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 990,
+        "y": 1040,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "cbf02c2271b83d6e",
+        "type": "inject",
+        "z": "26da8ec8a60a9d75",
+        "name": "co2 level checker",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "1800",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 170,
+        "y": 1080,
+        "wires": [
+            [
+                "19150e2af476eb60"
+            ]
+        ]
+    },
+    {
+        "id": "19150e2af476eb60",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "Checkco2level",
+        "func": "var co2 = global.get(\"co2\");\n\n\nif(co2 < 800){\n    msg.payload = 10000\n}\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 1080,
+        "wires": [
+            [
+                "b6eab7de040e4c93"
+            ]
+        ]
+    },
+    {
+        "id": "81fdec7aaed70467",
+        "type": "delay",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "pauseType": "rate",
+        "timeout": "5",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "10",
+        "rateUnits": "minute",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": true,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 800,
+        "y": 1020,
+        "wires": [
+            [
+                "315891178173b158"
+            ]
+        ]
+    },
+    {
+        "id": "285f16c0844113c5",
+        "type": "inject",
+        "z": "26da8ec8a60a9d75",
+        "name": "UI update",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "2",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 170,
+        "y": 1240,
+        "wires": [
+            [
+                "d59f386dcc9ec205"
+            ]
+        ]
+    },
+    {
+        "id": "42b30b567493f954",
+        "type": "ui_text",
+        "z": "26da8ec8a60a9d75",
+        "group": "49b8362b1f102d88",
+        "order": 18,
+        "width": "6",
+        "height": "1",
+        "name": "",
+        "label": "Last communication:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 780,
+        "y": 1220,
+        "wires": []
+    },
+    {
+        "id": "d59f386dcc9ec205",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "secondsSinceLastPayload",
+        "func": "var lastpayload = global.get(\"lastpayload\");\n\nvar longestdiff = global.get(\"longestDiff\");\n\nif(longestdiff == false){\n    longestdiff =0;\n}\n\ndiff = Date.now() - lastpayload\nmsg.payload = (diff/ 1000) + \" seconds ago\"\n\n\n\nreturn msg;\n\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "// Code added here will be run once\n// whenever the node is started.\nglobal.set(\"lastDiff\", 0);",
+        "finalize": "",
+        "libs": [],
+        "x": 460,
+        "y": 1240,
+        "wires": [
+            [
+                "42b30b567493f954",
+                "cb11736175da6329"
+            ]
+        ]
+    },
+    {
+        "id": "32f25dab62cbe53a",
+        "type": "ui_chart",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "group": "49b8362b1f102d88",
+        "order": 21,
+        "width": "9",
+        "height": "5",
+        "label": "Ram chart",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "",
+        "dot": false,
+        "ymin": "",
+        "ymax": "",
+        "removeOlder": "12",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "3600",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 270,
+        "y": 680,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "79817aeb50add8ba",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "ram Getter",
+        "func": "\nvar p = JSON.parse(msg.payload)\n\n\n\n\n\nvar json = {\"topic\":\"ram\",\n    \"payload\": p[\"ram\"] \n}\n\n\nreturn json\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 210,
+        "y": 600,
+        "wires": [
+            [
+                "32f25dab62cbe53a"
+            ]
+        ]
+    },
+    {
+        "id": "9ef143a7d6578b99",
+        "type": "credentials",
+        "z": "26da8ec8a60a9d75",
+        "name": "TargettelegramchatID",
+        "props": [
+            {
+                "value": "TelegramClientID",
+                "type": "msg"
+            }
+        ],
+        "x": 400,
+        "y": 1020,
+        "wires": [
+            [
+                "e03ff1ccdfb68112"
+            ]
+        ]
+    },
+    {
+        "id": "e0d2a11bf3985498",
+        "type": "ui_spacer",
+        "z": "26da8ec8a60a9d75",
+        "name": "spacer",
+        "group": "49b8362b1f102d88",
+        "order": 19,
+        "width": "20",
+        "height": "1"
     },
     {
         "id": "67b58dab33c9118c",
@@ -1285,6 +1597,30 @@
         "width": "23",
         "collapse": false,
         "className": ""
+    },
+    {
+        "id": "353ee16983fbc803",
+        "type": "telegram bot",
+        "botname": "EnvironControllerAlert_bot",
+        "usernames": "",
+        "chatids": "",
+        "baseapiurl": "",
+        "updatemode": "polling",
+        "pollinterval": "300",
+        "usesocks": false,
+        "sockshost": "",
+        "socksport": "6667",
+        "socksusername": "anonymous",
+        "sockspassword": "",
+        "bothost": "",
+        "botpath": "",
+        "localbotport": "8443",
+        "publicbotport": "8443",
+        "privatekey": "",
+        "certificate": "",
+        "useselfsignedcertificate": false,
+        "sslterminated": false,
+        "verboselogging": false
     },
     {
         "id": "b784527878a002f6",

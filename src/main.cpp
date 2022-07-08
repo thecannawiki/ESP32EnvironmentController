@@ -330,7 +330,7 @@ void initNonVolitileMem(){
   //Load params from EEPROM
   preferences.begin("controller", false); 
   fanPower = preferences.getInt("fanPower", 30);
-  dehumidiferState = preferences.getBool("dehumidState", true);
+  dehumidiferState = preferences.getBool("dehumidifier", false);
   lowerHumidityBound = preferences.getFloat("lowerBound", 40.0f);
   upperHumidityBound = preferences.getFloat("upperBound", 60.0f);
   automaticDehumidifier = preferences.getBool("autoDehumid", true);
@@ -356,7 +356,9 @@ void pressDehumidifierButton(){
   delay(500); 
   digitalWrite(dehumidifierControlPin, LOW); 
   dehumidiferState = !dehumidiferState;
+  preferences.putBool("dehumidifier", dehumidiferState);
 }
+
 
 //Handlers for web requests
 void getSensorReadingsWeb(AsyncWebServerRequest *request){
@@ -641,7 +643,7 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
   }
 
   if (String(topic) == "box/control/vibe") {
-    int num = messageTemp.toInt();    //replace
+    int num = messageTemp.toInt();    
     if(num > 10000){num = 10000;}
     stirPattern(num);
     return;
@@ -761,13 +763,11 @@ void operateDehumidifier(){   //if humidity too high turn off the dehumifier and
 void mainloop(void * parameter){
   vTaskDelay(1000);
   while(true){
-
     if(fanChanged){
       setFanPower(fanPower);
       fanChanged=false;
     }
     
-
     getSensorReadings();
 
     if(loopCounter%5 == 0){    //every sensorInterval * num seconds i%num
@@ -775,7 +775,7 @@ void mainloop(void * parameter){
         if(automaticVpd){
           float hu  = calcTargetHumidityForVpd(targetVpd);
           if(hu != -1){
-            Serial.print("±RH");
+            Serial.print("±RH ");
             lowerHumidityBound = hu - 1.0f;
             upperHumidityBound = hu + 1.0f;
             preferences.putInt("lowerBound", lowerHumidityBound);
@@ -789,7 +789,6 @@ void mainloop(void * parameter){
         mqttPublishSensorData();
       }
     }
-
 
     vTaskDelay(sensorInterval);
     loopCounter++;    //changing this value resets the freezewatchdog
@@ -815,7 +814,6 @@ void mqttLoop(void * parameter){
 }
 
 
-
 void setup() {
   //WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector 
   Serial.begin(115200);
@@ -830,7 +828,6 @@ void setup() {
     pixels.setBrightness(30);
     startLedanimation(rbgloop);
   }
- 
 
   ledcSetup(fanPWMchannel, freq, resolution);
   ledcAttachPin(fanControlPin, fanPWMchannel);

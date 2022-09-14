@@ -1,6 +1,8 @@
 # ESP32EnvironmentController
 An environment (Temperature, humidity, Co2) controller for ESP32
 
+![Node-red interface](https://user-images.githubusercontent.com/98982171/190256513-834cee8a-5ba4-4e40-86a7-a8b915711396.png)
+
 At minimum the controller can work with only 1 sensor. Connecting the relevant sensor will provide that value to the dashboard. For more advanced usage GPIO pins are provisioned to control relays or switching transistors
 
 ## Feature list:

@@ -249,7 +249,6 @@ void getSensorReadings(){
     }
   }
 
-
   if(!bmeMounted && !sgpMounted){return;}
   
   if(bmeMounted){
@@ -372,40 +371,40 @@ void pressDehumidifierButtonWeb(AsyncWebServerRequest *request){
 }
 
 void setUpperbound(AsyncWebServerRequest *request){
-    int paramsNr = request->params();
-    for(int i=0;i<paramsNr;i++){
-      AsyncWebParameter* p = request->getParam(i);
-      String paramName = p->name();
-      String paramValue = p->value();
-      if(paramName=="int" && paramValue.toInt()!=0){
-        Serial.println("setting upper bound to");
-        Serial.println(paramValue);
-        upperHumidityBound = paramValue.toFloat();
-        request->send(200, "text/plain", "upperBound set");
-      } else {
-        Serial.println("cast failed or int param not found");
-        request->send(400, "cast failed or int param not found");
-      }
+  int paramsNr = request->params();
+  for(int i=0;i<paramsNr;i++){
+    AsyncWebParameter* p = request->getParam(i);
+    String paramName = p->name();
+    String paramValue = p->value();
+    if(paramName=="int" && paramValue.toInt()!=0){
+      Serial.println("setting upper bound to");
+      Serial.println(paramValue);
+      upperHumidityBound = paramValue.toFloat();
+      request->send(200, "text/plain", "upperBound set");
+    } else {
+      Serial.println("cast failed or int param not found");
+      request->send(400, "cast failed or int param not found");
     }
+  }
 }
 
 void setLowerbound(AsyncWebServerRequest *request){
-    int paramsNr = request->params();
-    for(int i=0;i<paramsNr;i++){
-      AsyncWebParameter* p = request->getParam(i);
-      String paramName = p->name();
-      String paramValue = p->value();
-      if(paramName=="int" && paramValue.toInt()!=0){
-        Serial.println("setting lower bound to");
-        Serial.println(paramValue);
-        lowerHumidityBound = paramValue.toFloat();
-        Serial.println(lowerHumidityBound);
-        request->send(200, "text/plain", "lowerBound set");
-      } else {
-        Serial.println("cast failed or int param not found");
-        request->send(400, "cast failed or int param not found");
-      }
+  int paramsNr = request->params();
+  for(int i=0;i<paramsNr;i++){
+    AsyncWebParameter* p = request->getParam(i);
+    String paramName = p->name();
+    String paramValue = p->value();
+    if(paramName=="int" && paramValue.toInt()!=0){
+      Serial.println("setting lower bound to");
+      Serial.println(paramValue);
+      lowerHumidityBound = paramValue.toFloat();
+      Serial.println(lowerHumidityBound);
+      request->send(200, "text/plain", "lowerBound set");
+    } else {
+      Serial.println("cast failed or int param not found");
+      request->send(400, "cast failed or int param not found");
     }
+  }
 }
 
 void setPixelColor(uint32_t color){
@@ -418,16 +417,12 @@ void setPixelColor(uint32_t color){
 void longPWMloop(void * parameter){
   //This task kills itself it the fanpower is changed
   int totalwidth = 50;
-  int oncount = (fanPower - 1)/ 2 + 1;     //sweet trick to divide and get an int
+  int highcount = totalwidth * fanPower / 100; 
+  int halfPower = (maxPWMval - 1)/ 2 + 1; //sweet trick to divide and get an int
   int count = 0;
   while(true){ 
-    if(fanChanged){ 
-      Serial.print("killing myself lol");
-      vTaskDelete(NULL);
-    }
-
-    if(count < oncount){
-      ledcWrite(fanPWMchannel, maxPWMval);
+    if(count < highcount * 2){ //for halfpower change
+      ledcWrite(fanPWMchannel, halfPower);
     } else {
       ledcWrite(fanPWMchannel, 0);
     }
@@ -443,6 +438,9 @@ void setFanPower(int power){ /// 0-100
   
   vTaskDelay(2000);
   if(power< minpercentvalue){
+    if(longPWMTaskHandle != NULL){
+    vTaskDelete(longPWMTaskHandle);
+    }
       ///let the pwm loop task handle the fan
     xTaskCreate(
     longPWMloop,      // Function that should be called
@@ -501,6 +499,11 @@ void rbgloop(void * parameter){
       i=0;
     }
     vTaskDelay(800);
+    if (totalLoopCounter > 7){
+      setPixelColor(pixels.Color(255, 153, 51)); //orange
+      vTaskDelay(1000);
+      ESP.restart();
+    }
   }
 }
 

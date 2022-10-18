@@ -430,17 +430,18 @@ void longPWMloop(void * parameter){
     if(count > totalwidth){
       count = 0;
     }
+    if(fanChanged){
+      vTaskDelete(NULL);
+    }
     vTaskDelay(2000);
   }
 }
 
 void setFanPower(int power){ /// 0-100
-  
-  vTaskDelay(2000);
-  if(power< minpercentvalue){
-    if(longPWMTaskHandle != NULL){
+  if(longPWMTaskHandle != NULL){
     vTaskDelete(longPWMTaskHandle);
-    }
+  }
+  if(power < minpercentvalue){
       ///let the pwm loop task handle the fan
     xTaskCreate(
     longPWMloop,      // Function that should be called
@@ -773,7 +774,7 @@ void mainloop(void * parameter){
     
     getSensorReadings();
 
-    if(loopCounter%5 == 0){    //every sensorInterval * num seconds i%num
+    if(loopCounter%5 == 0){    //every sensorInterval * num seconds i%num 
       if(automaticDehumidifier){
         if(automaticVpd){
           float hu  = calcTargetHumidityForVpd(targetVpd);
@@ -845,8 +846,8 @@ void setup() {
 
   //get NVM
   initNonVolitileMem();
-  setFanPower(fanPower);
   Serial.println("");
+  delay(200);
 
   //Connect wifi
   Serial.println("starting WIFI..");
@@ -891,6 +892,7 @@ void setup() {
   xTaskCreate(mqttLoop, "mqttHandler", 4000, 0, 1, &mqttTaskHandle);
   xTaskCreate(mainloop, "main", 90000, 0, 0, &mainLoopTaskHandle);
   flash3green();
+  setFanPower(fanPower);
 }
 
 

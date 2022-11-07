@@ -5,6 +5,9 @@ Hardware support and default pins
   * 1 heater           pin33
   * 1 magnetic stirrer pin26
   * 1 neopixel         pin19
+  I2C connections
+  SDA                  pin21 
+  SCL                  pin22
 
 *********/
 //lots of libraries
@@ -19,19 +22,17 @@ Hardware support and default pins
 #include <WiFiMulti.h>
 #include <Wire.h>
 #include <SPI.h>
-#include <SparkFunBME280.h> //edit this library to change the i2c address if bme is not found
-#include <SparkFun_SGP30_Arduino_Library.h>
+
 #include <PubSubClient.h>
 #include <WiFiClientSecure.h>
 #include <Adafruit_NeoPixel.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
-
+#include <SensirionI2CScd4x.h>
 
 //global vals
 //hardware
-bool bmeMounted = false;
-bool sgpMounted = false;
+bool SCD40Mounted = false;
 bool dehumidiferState = false;
 bool automaticDehumidifier = true;
 bool automaticVpd = true;
@@ -49,7 +50,7 @@ int neopixelPin = 19;
 //environ vals
 float temp = -1;
 float humidity = -1;
-float co2 = -1;
+uint16_t co2 = -1;
 float tvoc = 0;
 float upperHumidityBound = 60.0f;
 float lowerHumidityBound = 40.0f;
@@ -78,8 +79,7 @@ bool fanChanged = false;
 WiFiMulti wifiMulti;
 AsyncWebServer server(80);
 Adafruit_NeoPixel pixels(1, neopixelPin, NEO_GRB + NEO_KHZ800);
-BME280 bme280;
-SGP30 sgp30;
+SensirionI2CScd4x scd4x;
 TaskHandle_t longPWMTaskHandle = NULL;
 TaskHandle_t LedAnimationTaskHandle = NULL;
 TaskHandle_t freezewatchdogTaskHandle = NULL;
@@ -213,64 +213,36 @@ bool refreshNetworkTime(){
 
 
 void initSensors(){
-  //Wire.begin(13, 12);               //SDA orange, SCL purple      // Default is SDA 14, SCL 15
-  bme280.setI2CAddress(0x76);
+  scd4x.begin(Wire);
+  uint16_t error = scd4x.stopPeriodicMeasurement();
+  if(error){
+    Serial.println("failed to stop SCD40");
+  }
+  error = scd4x.startPeriodicMeasurement();
+  if (error) {
+      Serial.print("Error trying to execute startPeriodicMeasurement(): ");
+      Serial.println(error);
+      SCD40Mounted = false;
+  } else {
+    Serial.println("SCD-40 connected");
+    SCD40Mounted = true;
+  }
 
-  if(bme280.beginI2C()){
-    bmeMounted = true;
-    Serial.println("bme280 found");
-  } else {
-    Serial.println("bme280 not found"); 
-    i2cScan();
-  }
-  if(sgp30.begin()){
-    sgpMounted = true;
-    sgp30.initAirQuality();
-    Serial.println("sgp30 found");
-  } else {
-    Serial.println("sgp30 not found");
-    i2cScan();
-  }
 }
 
 
 void getSensorReadings(){
-  //First 15 readings from SGP30 will be
-  //CO2: 400 ppm  TVOC: 0 ppb as it warms up
-  if(!bmeMounted){
-    if(bme280.beginI2C()){
-      bmeMounted = true;
-    } 
-  }
-  if(!sgpMounted){
-    if(sgp30.begin()){
-      sgpMounted = true;
-      sgp30.initAirQuality();
+  if(SCD40Mounted){
+    uint16_t error = scd4x.readMeasurement(co2, temp, humidity);
+    Serial.println(co2);
+    Serial.println(temp);
+    Serial.println(humidity);
+    if(error){
+      Serial.println("Error reading sensor values from SC40");
+      char errorMessage[256];
+      errorToString(error, errorMessage, 256);
+      Serial.println(errorMessage);
     }
-  }
-
-  if(!bmeMounted && !sgpMounted){return;}
-  
-  if(bmeMounted){
-    humidity = bme280.readFloatHumidity();
-    temp = bme280.readTempC();
-    if(temp <0){
-      temp = -1;
-      humidity = -1;
-      bmeMounted = false;
-    }else{
-      Serial.print("* ");
-    }
-    if(temp >=30){
-      heaterState = false;
-    }
-  }
-
-  if(sgpMounted){
-    sgp30.measureAirQuality();
-    co2 = sgp30.CO2;
-    tvoc = sgp30.TVOC;
-    Serial.print("÷ ");
   }
 }
 
@@ -305,7 +277,7 @@ void UpdateSensorJson(){
     dtostrf(humidity, 5, 4, trimmedfloat); 
     doc["RH"] = trimmedfloat;
   }
-  if(co2 != -1){doc["co2"] = co2;}
+  if(co2 != 65535){doc["co2"] = co2;}   // 65535 is the co2 value from the SCD-40 when its still warming up
 
   doc["tvoc"] = tvoc;
   dtostrf(calcVpd(), 5, 4, trimmedfloat); 
@@ -415,7 +387,6 @@ void setPixelColor(uint32_t color){
 }
 
 void longPWMloop(void * parameter){
-  //This task kills itself it the fanpower is changed
   int totalwidth = 50;
   int highcount = totalwidth * fanPower / 100; 
   int halfPower = (maxPWMval - 1)/ 2 + 1; //sweet trick to divide and get an int
@@ -429,9 +400,6 @@ void longPWMloop(void * parameter){
     count+=1;
     if(count > totalwidth){
       count = 0;
-    }
-    if(fanChanged){
-      vTaskDelete(NULL);
     }
     vTaskDelay(2000);
   }
@@ -745,7 +713,7 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
 }
 
 void operateDehumidifier(){   //if humidity too high turn off the dehumifier and vice-versa
-  if(bmeMounted !=(float)0 && humidity!=(float)0){
+  if(SCD40Mounted && humidity>=(float)0){
     Serial.print("O ");
     if(dehumidiferState){ //dehumidifier on
         if(humidity <= lowerHumidityBound){
@@ -772,7 +740,9 @@ void mainloop(void * parameter){
       fanChanged=false;
     }
     
+    if(loopCounter%2 == 0){
     getSensorReadings();
+    }
 
     if(loopCounter%5 == 0){    //every sensorInterval * num seconds i%num 
       if(automaticDehumidifier){
@@ -824,7 +794,7 @@ void setup() {
   while (!Serial) { delay(100); } // Wait for serial console to open!
   delay(1000);
   Wire.begin();
-  Wire.setClock(400000);
+  Wire.setClock(10000);
   xTaskCreate(freezeWatchdog, "watchdog", 1000, 0, 0, &freezewatchdogTaskHandle);
 
   if(LED){

@@ -1,7 +1,9 @@
-#define SSIDNAME ""
-#define WIFIPASS ""
-#define MQTTURL ""
-#define MQTTUSER ""
-#define MQTTPASS ""
+#define SSIDNAME "TrilliumKillinEm"
+#define WIFIPASS "Despacito2"
+#define MQTTURL "fa0e1a004876435d9dd9ccca0e0d3a83.s1.eu.hivemq.cloud"
+#define MQTTUSER "Device"
+#define MQTTPASS "GAhWb.XhhqiRKy8"
 #define MQTTPORT 8883
-#define LED false
+#define MQTTPUBLISHTOPIC "box/environ"
+#define MQTTCONTROLTOPIC "box/control"
+#define LED true

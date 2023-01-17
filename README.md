@@ -37,6 +37,20 @@ Once flashing is complete you should see the Esp32 connect to Wifi and authentic
 8. In Node-red configure MQTT broker login details you created in step 2.
 9. Connect sensors to the ESP32 (see below), and connect the esp to power either via the pins or USB port (Requires 5v 2A). Unfortunately, most PC usb ports only provide 1A so you will need a usb plug adapter or power supply.
 
+## MQTT Topics
+The Topic the grow controller will publish sensor data to is specified in credentials.h as MQTTPUBLISHTOPIC.
+The controller can be instructed by sending messages to the MQTTCONTROLTOPIC + the endpoint
+e.g MQTTCONTROLTOPIC + "dehumidifier/auto"
+The following endpoints are supported:
+/dehumidifier/autoVpd
+/dehumidifier/auto
+/dehumidifier/lower
+/dehumidifier/upper
+/dehumidifier/target
+/dehumidifier/press
+/exhaust
+/targetVpd
+
 
 ## Sensor connections:
 * The BME280 and SGP30 are both I2C devices that require the following pins on the esp32 `3.3v`, `GND`, `pin 21 for SDA` and `pin 22 for SCL`

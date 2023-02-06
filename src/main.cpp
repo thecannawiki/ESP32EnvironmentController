@@ -16,6 +16,8 @@ Hardware support and default pins
 #include <mathsfunctions.h>
 
 
+int PIDLookback = 7; //number of samples to look back on for PID 
+
 //Functions for debug
 void scanForWifi(){
   Serial.print("wifi Scan start ... ");
@@ -68,6 +70,32 @@ void i2cScan(){
     Serial.println("done\n");
 }
 
+enum BufferStatus {BUFFER_OK, BUFFER_EMPTY, BUFFER_FULL};
+#define BUFFER_SIZE  16
+struct Buffer {
+    float data[BUFFER_SIZE];
+    uint8_t newest_index;
+    uint8_t oldest_index;
+};
+
+Buffer humidityBuffer = {{}, 0, 0};
+Buffer errorBuffer = {{}, 0, 0};
+
+/// This is bad 
+enum BufferStatus humidityBufferWrite(float byte){
+    uint8_t next_index = (humidityBuffer.newest_index+1) % BUFFER_SIZE;
+    humidityBuffer.data[humidityBuffer.newest_index] = byte;
+    humidityBuffer.newest_index = next_index;
+    return BUFFER_OK;
+}
+enum BufferStatus errorBufferWrite(float byte){
+    uint8_t next_index = (errorBuffer.newest_index+1) % BUFFER_SIZE;
+    errorBuffer.data[errorBuffer.newest_index] = byte;
+    errorBuffer.newest_index = next_index;
+    return BUFFER_OK;
+}
+	
+
 
 bool refreshNetworkTime(){
   struct tm timeinfo;
@@ -99,28 +127,50 @@ void initSensors(){
 }
 
 
-void getSensorReadings(){
+
+
+
+void getSensorReadings(){   //This can be done every 5 seconds
   if(SCD40Mounted){
     uint16_t error = scd4x.readMeasurement(co2, temp, humidity);
-    Serial.println(co2);
-    Serial.println(temp);
-    Serial.println(humidity);
-    if(error){
-      Serial.println("Error reading sensor values from SC40");
+    // Serial.println(co2);
+    // Serial.println(temp);
+    // Serial.println(humidity);
+    if(error || (co2 == -1 || temp == -1 || humidity == -1)){
+      Serial.print("Error reading sensor values from SC40 ::");
       char errorMessage[256];
       errorToString(error, errorMessage, 256);
       Serial.println(errorMessage);
+    }else{
+      Serial.print("R ");
+      Serial.print(humidity, 4);
     }
+    humidityBufferWrite(humidity);
+
+    float num = 0;
+    int dupecount =0;
+    for(int i=1; i<5; i++){
+      int index = humidityBuffer.newest_index-i;
+      if(index < 0){
+        index = BUFFER_SIZE - index;
+      }
+      float c  = humidityBuffer.data[index];
+      if(c == num){
+        dupecount++;
+      }
+      num = c;
+    }
+    // if(dupecount > 1){
+    //   Serial.println("dupe count ");
+    //   Serial.print(dupecount);
+    // }
+    if(dupecount > 2){
+      Serial.println("reinit sensors");
+      initSensors();
+      return;
+    }
+
   }
-}
-
-
-float calcVpd(){    //Calc vpd from air temp humidity
-
-  float svp = 610.7 * (pow(10, (7.5*temp/(237.3+temp))));  
-  float vpd = (((100 - humidity)/100)*svp)/1000; 
-
-  return vpd;
 }
 
 void UpdateSensorJson(){
@@ -138,30 +188,43 @@ void UpdateSensorJson(){
   if(co2 != 65535){doc["co2"] = co2;}   // 65535 is the co2 value from the SCD-40 when its still warming up
 
   doc["tvoc"] = tvoc;
-  dtostrf(calcVpd(), 5, 4, trimmedfloat); 
+  dtostrf(calcVpd(temp, humidity), 5, 4, trimmedfloat); 
   doc["vpd"] = trimmedfloat;
   dtostrf(targetVpd, 5, 4, trimmedfloat); 
   doc["targetVpd"] = trimmedfloat;
   doc["autoVpd"] = automaticVpd;
-  dtostrf(lowerHumidityBound, 5, 4, trimmedfloat);
-  doc["lowerBound"] = trimmedfloat;
-  dtostrf(upperHumidityBound, 5, 4, trimmedfloat);
-  doc["upperBound"] = trimmedfloat;
+  dtostrf(targetHumidity, 5, 4, trimmedfloat);
+  doc["targetHu"] = trimmedfloat;
+  dtostrf(P, 5, 4, trimmedfloat);
+  doc["P"] = trimmedfloat;
+  dtostrf(I, 5, 4, trimmedfloat);
+  doc["I"] = trimmedfloat;
+  dtostrf(D, 5, 4, trimmedfloat);
+  doc["D"] = trimmedfloat;
+  dtostrf(fanPower, 5, 1, trimmedfloat);
+  doc["fan"] = trimmedfloat;
+  // dtostrf(lowerHumidityBound, 5, 4, trimmedfloat);
+  // doc["lowerBound"] = trimmedfloat;
+  // dtostrf(upperHumidityBound, 5, 4, trimmedfloat);
+  // doc["upperBound"] = trimmedfloat;
   doc["dehumidState"] = dehumidiferState;
   doc["autoDehumid"] = automaticDehumidifier;
-  doc["fan"] = fanPower;
+  
   doc["heaterState"] = heaterState;
-  doc["ram"] = ESP.getFreeHeap();
+  //doc["ram"] = ESP.getFreeHeap();
   serializeJson(doc, sensorjson);
 }
 
 void initNonVolitileMem(){
   //Load params from EEPROM
   preferences.begin("controller", false); 
-  fanPower = preferences.getInt("fanPower", 30);
+  fanPower = preferences.getFloat("fanPower", 0.0f);
   dehumidiferState = preferences.getBool("dehumidifier", false);
   lowerHumidityBound = preferences.getFloat("lowerBound", 40.0f);
   upperHumidityBound = preferences.getFloat("upperBound", 60.0f);
+  P = preferences.getFloat("P", 0.2f);
+  I = preferences.getFloat("I", 0.2f);
+  D = preferences.getFloat("D", 10.0f);
   automaticDehumidifier = preferences.getBool("autoDehumid", true);
   automaticVpd = preferences.getBool("autoVpd", true);
   targetVpd = preferences.getFloat("tvpd", 1.0f);
@@ -244,9 +307,11 @@ void setPixelColor(uint32_t color){
   }
 }
 
-void longPWMloop(void * parameter){
+void longPWMloop(void *parameter){ // 0-1000
+  int *power;
+  power = (int *) parameter;
   int totalwidth = 50;
-  int highcount = totalwidth * fanPower / 100; 
+  int highcount = totalwidth * int(power) / 1000; 
   int halfPower = (maxPWMval - 1)/ 2 + 1; //sweet trick to divide and get an int
   int count = 0;
   while(true){ 
@@ -258,30 +323,39 @@ void longPWMloop(void * parameter){
     count+=1;
     if(count > totalwidth){
       count = 0;
+      
     }
+    if(fanChanged){  vTaskDelete( NULL ); Serial.println("fan task killed");}
     vTaskDelay(2000);
   }
 }
 
-void setFanPower(int power){ /// 0-100
-  if(longPWMTaskHandle != NULL){
-    vTaskDelete(longPWMTaskHandle);
-  }
-  if(power < minpercentvalue){
+void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-1000 by multiplying by 10
+
+  int powerVal  = fanPower * 10;
+  float percentVal = powerVal / 1000;
+
+  if(powerVal>1000){powerVal = 1000;}
+  if(powerVal<0){powerVal = 0;}
+
+  if(percentVal < minpercentvalue){
       ///let the pwm loop task handle the fan
     xTaskCreate(
     longPWMloop,      // Function that should be called
     "longPWM",        // Name of the task (for debugging)
     1000,             // Stack size (bytes)
-    NULL,             // Parameter to pass
+    (void *) powerVal,// Parameter to pass
     3,                // Task priority
     &longPWMTaskHandle);       // Task handle 
-    Serial.println("made new fan task");
+    //Serial.print("made new fan task. fan value ");
+    //Serial.println(powerVal);
   } else {
-    int powerVal = map(power, 0, 100, 0, maxPWMval);
+    powerVal = map(powerVal, 0, 1000, 0, maxPWMval);
     ledcWrite(fanPWMchannel, powerVal);
   }
 
+  preferences.putFloat("fanPower", fanPower);
+  saveToNVM();
   esp_task_wdt_reset();
 }
 
@@ -392,12 +466,15 @@ void mqttreconnect() {    //TODO check mqtt stuff is defined
       mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/dehumidifier/autoVpd"}).data());
       mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/dehumidifier/lower"}).data());
       mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/dehumidifier/upper"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/dehumidifier/target"}).data());
+      //mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/dehumidifier/target"}).data());
       mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/dehumidifier/press"}).data());
       mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/exhaust"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/heater"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/vibe"}).data());
+      //mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/heater"}).data());
+      //mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/vibe"}).data());
       mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/targetVpd"}).data());
+      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/P"}).data());
+      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/I"}).data());
+      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/D"}).data());
     } else {
       Serial.print("failed, rc=");
       Serial.print(mqttclient.state());
@@ -442,24 +519,24 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     messageTemp += (char)message[i];
   }
 
-  Serial.print("~#");
+  Serial.print("got mqtt ");
   Serial.print(topic);
   Serial.print(" | ");
   Serial.println(messageTemp);
 
   if (String(topic) == "box/control/exhaust") {
-    int num = messageTemp.toInt();
+    float num = messageTemp.toFloat();
     if(num>100){ num = 100;}
     if(num<0){num = 0;}
     if(num != fanPower){
       fanChanged = true;
     }
     fanPower = num;
-    preferences.putInt("fanPower", fanPower);
+    preferences.putFloat("fanPower", fanPower);
     saveToNVM();
 
     char data[20];
-    snprintf_P(data, sizeof(data), PSTR("{\"fan\":%i}"), fanPower);
+    snprintf_P(data, sizeof(data), PSTR("{\"fan\":%f}"), fanPower);
     mqttclient.publish(MQTTPUBLISHTOPIC, data);
 
     return;
@@ -487,6 +564,30 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     }
     return;
   }
+
+  //PID stuff
+  if(String(topic) == "box/control/P"){
+    float num = messageTemp.toFloat();
+      P = num;
+      preferences.putFloat("P", P);
+      saveToNVM();
+    return;
+  }
+  if(String(topic) == "box/control/I"){
+    float num = messageTemp.toFloat();
+      I = num;
+      preferences.putFloat("I", I);
+      saveToNVM();
+    return;
+  }
+  if(String(topic) == "box/control/D"){
+    float num = messageTemp.toFloat();
+      D = num;
+      preferences.putFloat("D", D);
+      saveToNVM();
+    return;
+  }
+
 
   if (String(topic) == "box/control/dehumidifier/auto") {
     
@@ -569,61 +670,157 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
   }
 }
 
-void operateDehumidifier(){   //if humidity too high turn off the dehumifier and vice-versa
+void operateDehumidifier(){   //if humidity too high turn on the dehumidifier and vice-versa
   if(SCD40Mounted && humidity>=(float)0){
     Serial.print("O ");
     if(dehumidiferState){ //dehumidifier on
         if(humidity <= lowerHumidityBound){
           pressDehumidifierButton();
-        } else{
-          //Serial.println("dehumdifier in the right state");
         }
     } else{ //dehumidifer off
       if(humidity >= upperHumidityBound){
         pressDehumidifierButton();
-      } else{
-        //Serial.println("dehumdifier in the right state");
       }
     }
   }
+}
+
+float calcDfan(){
+
+  // Serial.println("buffer");
+  // for(int i=0; i<BUFFER_SIZE; i++){
+  //   Serial.println(buffer.data[i]);
+  // }
+
+
+  int tenindex = humidityBuffer.newest_index-PIDLookback;
+  int cindex = humidityBuffer.newest_index-1;
+  if(tenindex < 0){
+      tenindex = BUFFER_SIZE + tenindex;
+  }
+  if(cindex < 0){
+      cindex = BUFFER_SIZE + cindex;
+  }
+  float old = humidityBuffer.data[tenindex];
+  float current = humidityBuffer.data[cindex];
+   if(old ==-1.0f || old == 0.0f || current ==-1.0f || current== 0.0f){
+      return 0;
+    }
+
+  float diff = ( current - old) / PIDLookback;
+
+
+  
+  float Dfan = D * diff; 
+
+  
+  Serial.print("D = ");
+  Serial.print(Dfan);
+  Serial.print(" (diff ");
+  Serial.print(diff);
+  Serial.println(")");
+
+  return Dfan;
+}
+
+float calcIfan(){
+  float sum = 0;
+  for(int i=1; i<PIDLookback; i++){
+    int cindex = errorBuffer.newest_index-i;
+    if(cindex < 0){
+      cindex = BUFFER_SIZE + cindex;
+    }
+    
+    float c = errorBuffer.data[cindex];
+    sum+=c;
+  }
+
+  
+  float Ifan = (I * sum) /10; //for tuning
+  
+ 
+  Serial.print("I = ");
+  Serial.print(Ifan);
+  Serial.print(" (integral ");
+  Serial.print(sum);
+  Serial.println(")");
+
+  return Ifan; 
+}
+
+void fanPID(){
+      float humidityError = humidity - targetHumidity;
+      errorBufferWrite(humidityError);
+      Serial.println("");
+      Serial.print("humidity error ");
+      Serial.print(humidityError,4);
+      Serial.println("");
+      Serial.println("PID ");
+      //P
+      float Pfan = P * humidityError;
+      
+      Serial.print("P = ");
+      Serial.print(Pfan);
+      Serial.println("");
+      
+      //D
+      float Dfan = calcDfan();
+      //I
+      float Ifan = calcIfan();
+
+      float newfan = fanPower + Pfan + Dfan + Ifan;
+      if(newfan <=0){newfan = 0.1f;}
+      if(newfan >=100){newfan = 99.9f;}
+      if(abs(newfan - fanPower) >= 0.1f){
+       
+        Serial.print("new fan power ");
+        Serial.println(newfan);
+        fanPower=newfan;
+        fanChanged=true;
+      }
+
 }
 
 
 void mainloop(void * parameter){
   vTaskDelay(1000);
   while(true){
-    if(fanChanged){
-      setFanPower(fanPower);
+    if(fanChanged){           //cool trick to recreate fan task at a good time (where it wont crash)
+      updateFanPower();
       fanChanged=false;
     }
     
-    if(loopCounter%2 == 0){
-    getSensorReadings();
+    if(loopCounter%5 == 0){
+      getSensorReadings();
+      
+      fanPID();
     }
 
-    if(loopCounter%5 == 0){    //every sensorInterval * num seconds i%num 
+    if(loopCounter%5 == 0){    //every sensorInterval * num seconds i%num (10 secs)
+      targetHumidity  = calcTargetHumidityForVpd(targetVpd, temp);
+      Serial.print("±RH ");
+      lowerHumidityBound = targetHumidity - 0.5f;
+      upperHumidityBound = targetHumidity + 0.5f;
       if(automaticDehumidifier){
         if(automaticVpd){
-          float hu  = calcTargetHumidityForVpd(targetVpd, temp, humidity);
-          if(hu != -1){
-            Serial.print("±RH ");
-            lowerHumidityBound = hu - 1.0f;
-            upperHumidityBound = hu + 1.0f;
+          if(targetHumidity != -1){
             preferences.putInt("lowerBound", lowerHumidityBound);
             preferences.putInt("higherBound", upperHumidityBound);
-            saveToNVM();
+            //saveToNVM();
           } 
         }
         operateDehumidifier();
       }
+
       if(mqttclient.connected()){
         mqttPublishSensorData();
       }
     }
 
+    
     vTaskDelay(sensorInterval);
     loopCounter++;    //changing this value resets the freezewatchdog
-    if(loopCounter > 1000){
+    if(loopCounter > 100){
       loopCounter = 0;
     }
   }
@@ -635,10 +832,14 @@ void mqttLoop(void * parameter){
   while(true){
     if(mqttclient.connected()){
       Serial.print("¤ ");
-     mqttclient.loop();
-    } else {
-      mqttreconnect();
       mqttclient.loop();
+    } else {
+      try{
+        mqttreconnect();
+        mqttclient.loop();
+      } catch (std::exception& e) {
+        Serial.print("mqtt reconnect failed");
+      }
     }
     vTaskDelay(1000);
   }
@@ -648,10 +849,10 @@ void mqttLoop(void * parameter){
 void setup() {
   //WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector 
   Serial.begin(115200);
-  while (!Serial) { delay(100); } // Wait for serial console to open!
+  while (!Serial) { delay(300); } // Wait for serial console to open!
   delay(1000);
   Wire.begin();
-  Wire.setClock(10000);
+  //Wire.setClock(10000);
   xTaskCreate(freezeWatchdog, "watchdog", 1000, 0, 0, &freezewatchdogTaskHandle);
 
   if(LED){
@@ -670,6 +871,7 @@ void setup() {
   
   //sensors
   initSensors();
+  delay(1000);
 
   //get NVM
   initNonVolitileMem();
@@ -715,11 +917,10 @@ void setup() {
   server.on("/press", pressDehumidifierButtonWeb);
 
   server.begin();
-  
+  flash3green();
   xTaskCreate(mqttLoop, "mqttHandler", 4000, 0, 1, &mqttTaskHandle);
   xTaskCreate(mainloop, "main", 90000, 0, 0, &mainLoopTaskHandle);
-  flash3green();
-  setFanPower(fanPower);
+  updateFanPower();
 }
 
 

@@ -25,8 +25,8 @@ extern bool dehumidiferState;
 extern bool automaticDehumidifier;
 extern bool automaticVpd;
 extern bool heaterState;
-extern int fanPower;
-extern int minpercentvalue; //min power percentage required to make fan spin
+extern float fanPower;
+extern float minpercentvalue; //min power percentage required to make fan spin 
 
 //pinout
 extern int dehumidifierControlPin;
@@ -37,6 +37,7 @@ extern int neopixelPin;
 
 //environ vals
 extern float temp;
+extern float targetHumidity;
 extern float humidity;
 extern uint16_t co2;
 extern float tvoc;
@@ -45,6 +46,12 @@ extern float lowerHumidityBound;
 extern float targetVpd;
 extern int sensorInterval;
 extern char sensorjson[240];   //There is a max size u can send to MQTT broker
+
+
+//PID
+extern float P;
+extern float I;
+extern float D;
 
 //time
 extern const char* ntpServer;

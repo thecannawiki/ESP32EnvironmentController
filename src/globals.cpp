@@ -25,8 +25,8 @@ bool dehumidiferState = false;
 bool automaticDehumidifier = true;
 bool automaticVpd = true;
 bool heaterState = false;
-int fanPower = 30;
-int minpercentvalue = 25; //min power percentage required to make fan spin
+float fanPower = 30;        //float between 0 and 100
+float minpercentvalue = 0.25; //min power percentage required to make fan spin e.g 0.25 for 25%
 
 //pinout
 int dehumidifierControlPin = 13;
@@ -38,6 +38,7 @@ int neopixelPin = 19;
 //environ vals
 float temp = -1;
 float humidity = -1;
+float targetHumidity = -1;
 uint16_t co2 = -1;
 float tvoc = 0;
 float upperHumidityBound = 60.0f;
@@ -45,6 +46,12 @@ float lowerHumidityBound = 40.0f;
 float targetVpd = 1.0f;
 int sensorInterval = 2000;
 char sensorjson[240];   //There is a max size u can send to MQTT broker
+
+
+//PID
+float P = 0.1;
+float I = 0.1;
+float D = 0.1;
 
 //time
 const char* ntpServer = "pool.ntp.org";

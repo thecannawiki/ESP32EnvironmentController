@@ -99,10 +99,11 @@
         "finalize": "",
         "libs": [],
         "x": 540,
-        "y": 100,
+        "y": 120,
         "wires": [
             [
-                "93fe1f0bd4359cb9"
+                "93fe1f0bd4359cb9",
+                "931c1693c143c6b2"
             ]
         ]
     },
@@ -120,8 +121,8 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1160,
-        "y": 720,
+        "x": 1100,
+        "y": 740,
         "wires": []
     },
     {
@@ -129,14 +130,14 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "dehumidifierStateGetter",
-        "func": "var p = JSON.parse(msg.payload)\n\nvar value =\"\"\nif (p[\"dehumidState\"]) {\n    value  = 1\n}\nelse{\n    value  = 0\n}\n\nvar dehumidifierPastVals = global.get(\"dehumidStates\");\nif(dehumidifierPastVals == null){\n    dehumidifierPastVals = []\n}\nif(dehumidifierPastVals.length > 50){\n    dehumidifierPastVals.shift();\n}\ndehumidifierPastVals.push(value);\nglobal.set(\"dehumidStates\", dehumidifierPastVals);\nnode.warn(global.get(\"dehumidStates\"));\n\nconst itemCounter = (array, item) => {\n    return array.filter((currentItem) => currentItem == item).length;\n};\n\nvar ons = itemCounter(dehumidifierPastVals, 1);\nvar effectivePower = String((ons/dehumidifierPastVals.length) * 100) + \"%\"\nnode.warn(effectivePower);\n\nvar statePayload = {\"topic\":\"dehumidifierState\",\n    \"payload\":value\n}\nvar effectivePowerPayload = {\"topic\":\"effectivePower\",\n    \"payload\":effectivePower\n}\n\n\nreturn [statePayload, effectivePowerPayload];\n",
-        "outputs": 2,
+        "func": "const itemCounter = (array, item) => {\n    return array.filter((currentItem) => currentItem == item).length;\n};\n\n\nvar p = JSON.parse(msg.payload)\n//console.log(p)\nvar dehumidifierState =\"\"\nif(!p.hasOwnProperty(\"dehumidState\")){return;}\n\n    \nif (p[\"dehumidState\"]) {\n    dehumidifierState  = 1\n}\nelse{\n    dehumidifierState  = 0\n}\n\n\nvar dehumidifierPastVals = global.get(\"dehumidStates\");\nif(dehumidifierPastVals == null){\n    dehumidifierPastVals = []\n}\nif(dehumidifierPastVals.length > 20){\n    dehumidifierPastVals.shift();\n}\ndehumidifierPastVals.push(dehumidifierState);\nglobal.set(\"dehumidStates\", dehumidifierPastVals);\n//node.warn(global.get(\"dehumidStates\"));\n\n\n\nvar ons = itemCounter(dehumidifierPastVals, 1);\nvar effectivePower = parseFloat((ons/dehumidifierPastVals.length) * 100).toFixed(2)\nconst effectivePowerString = String(effectivePower) + \"%\"\n//node.warn(effectivePower);\n//node.warn(effectivePowerString);\nflow.set(\"effectiveDehumidPower\", effectivePower)\n\n\nvar dehumidPowerPastVals = flow.get(\"dehumidPowerPastVals\")\nif(dehumidPowerPastVals == null){\n    dehumidPowerPastVals = []\n}\ndehumidPowerPastVals.push(parseFloat(effectivePower))\nif(dehumidPowerPastVals.length > 20){\n    dehumidPowerPastVals.shift();\n}\nflow.set(\"dehumidPowerPastVals\", dehumidPowerPastVals)\n\n\nvar statePayload = {\"topic\":\"dehumidifierState\",\n    \"payload\": dehumidifierState\n}\nvar effectivePowerStringPayload = {\"topic\":\"effectivePower\",\n    \"payload\": effectivePowerString\n}\n\nvar effectivePowerNumPayload = {\"topic\":\"effectivePower\",\n    \"payload\": effectivePower\n}\n\n\nreturn [statePayload, effectivePowerStringPayload, effectivePowerNumPayload];\n",
+        "outputs": 3,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
         "x": 570,
-        "y": 200,
+        "y": 240,
         "wires": [
             [
                 "2e3e5e2ac8bb5f39",
@@ -144,6 +145,9 @@
             ],
             [
                 "3bec20de4cd4979c"
+            ],
+            [
+                "40648a1fea3d5d1a"
             ]
         ]
     },
@@ -180,8 +184,8 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1180,
-        "y": 360,
+        "x": 1140,
+        "y": 460,
         "wires": []
     },
     {
@@ -198,8 +202,8 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1190,
-        "y": 240,
+        "x": 1110,
+        "y": 220,
         "wires": []
     },
     {
@@ -214,7 +218,7 @@
         "finalize": "",
         "libs": [],
         "x": 600,
-        "y": 340,
+        "y": 460,
         "wires": [
             [
                 "5bf7860e0bc7ac99"
@@ -229,7 +233,7 @@
         "label": "Dehumidifier state",
         "tooltip": "",
         "group": "49b8362b1f102d88",
-        "order": 10,
+        "order": 19,
         "width": "6",
         "height": "2",
         "passthru": false,
@@ -247,7 +251,7 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 850,
+        "x": 830,
         "y": 220,
         "wires": [
             [
@@ -263,9 +267,9 @@
         "label": "auto dehumidifier control?",
         "tooltip": "",
         "group": "49b8362b1f102d88",
-        "order": 13,
-        "width": "6",
-        "height": "2",
+        "order": 20,
+        "width": "5",
+        "height": "1",
         "passthru": false,
         "decouple": "true",
         "topic": "topic",
@@ -281,8 +285,8 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 930,
-        "y": 360,
+        "x": 870,
+        "y": 460,
         "wires": [
             [
                 "40aff9772cd6b366"
@@ -293,12 +297,12 @@
         "id": "42f49d5e6049d286",
         "type": "ui_slider",
         "z": "26da8ec8a60a9d75",
-        "name": "fanControlInput",
+        "name": "Fan control slider",
         "label": "ExhaustPower",
         "tooltip": "",
         "group": "49b8362b1f102d88",
-        "order": 8,
-        "width": "6",
+        "order": 14,
+        "width": "5",
         "height": "1",
         "passthru": false,
         "outs": "end",
@@ -306,10 +310,10 @@
         "topicType": "msg",
         "min": 0,
         "max": "100",
-        "step": 1,
+        "step": "0.1",
         "className": "",
-        "x": 860,
-        "y": 760,
+        "x": 830,
+        "y": 740,
         "wires": [
             [
                 "5d73c6ba0deb6825"
@@ -322,7 +326,7 @@
         "z": "26da8ec8a60a9d75",
         "d": true,
         "group": "49b8362b1f102d88",
-        "order": 9,
+        "order": 18,
         "width": "6",
         "height": "2",
         "name": "",
@@ -330,7 +334,7 @@
         "format": "{{msg.payload}}",
         "layout": "row-spread",
         "className": "",
-        "x": 860,
+        "x": 840,
         "y": 640,
         "wires": []
     },
@@ -338,7 +342,7 @@
         "id": "5e56eb834c7783fe",
         "type": "ui_chart",
         "z": "26da8ec8a60a9d75",
-        "name": "temp",
+        "name": "tempChart",
         "group": "49b8362b1f102d88",
         "order": 4,
         "width": "12",
@@ -396,7 +400,7 @@
         "dot": false,
         "ymin": "400",
         "ymax": "3000",
-        "removeOlder": "2",
+        "removeOlder": "12",
         "removeOlderPoints": "",
         "removeOlderUnit": "3600",
         "cutout": 0,
@@ -416,7 +420,7 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 820,
+        "x": 800,
         "y": 60,
         "wires": [
             []
@@ -430,7 +434,7 @@
         "group": "49b8362b1f102d88",
         "order": 5,
         "width": "12",
-        "height": "5",
+        "height": "4",
         "label": "humidity",
         "chartType": "line",
         "legend": "false",
@@ -460,8 +464,8 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 840,
-        "y": 120,
+        "x": 820,
+        "y": 100,
         "wires": [
             []
         ]
@@ -472,14 +476,14 @@
         "z": "26da8ec8a60a9d75",
         "name": "DehumidiferStateChart",
         "group": "49b8362b1f102d88",
-        "order": 6,
-        "width": "12",
+        "order": 17,
+        "width": "10",
         "height": "3",
         "label": "Dehumidifer State",
         "chartType": "line",
         "legend": "false",
         "xformat": "HH:mm:ss",
-        "interpolate": "linear",
+        "interpolate": "step",
         "nodata": "",
         "dot": false,
         "ymin": "0",
@@ -504,7 +508,7 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 860,
+        "x": 840,
         "y": 180,
         "wires": [
             []
@@ -549,11 +553,12 @@
         "id": "0ea4accf39062632",
         "type": "ui_slider",
         "z": "26da8ec8a60a9d75",
+        "d": true,
         "name": "setlowerHumidityBound",
         "label": "lower humid bound",
         "tooltip": "",
         "group": "49b8362b1f102d88",
-        "order": 11,
+        "order": 23,
         "width": "8",
         "height": "1",
         "passthru": false,
@@ -564,8 +569,8 @@
         "max": "80",
         "step": "0.1",
         "className": "",
-        "x": 870,
-        "y": 520,
+        "x": 130,
+        "y": 640,
         "wires": [
             [
                 "880f5debc7625235"
@@ -586,8 +591,8 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1140,
-        "y": 500,
+        "x": 160,
+        "y": 680,
         "wires": []
     },
     {
@@ -601,8 +606,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 550,
-        "y": 520,
+        "x": 170,
+        "y": 600,
         "wires": [
             [
                 "0ea4accf39062632"
@@ -620,8 +625,8 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 550,
-        "y": 560,
+        "x": 150,
+        "y": 720,
         "wires": [
             [
                 "fb15a0964089df98"
@@ -632,11 +637,12 @@
         "id": "fb15a0964089df98",
         "type": "ui_slider",
         "z": "26da8ec8a60a9d75",
+        "d": true,
         "name": "setlupperHumidityBound",
         "label": "Upper humid bound",
         "tooltip": "",
         "group": "49b8362b1f102d88",
-        "order": 12,
+        "order": 24,
         "width": "8",
         "height": "2",
         "passthru": false,
@@ -647,8 +653,8 @@
         "max": "80",
         "step": "0.1",
         "className": "",
-        "x": 850,
-        "y": 580,
+        "x": 170,
+        "y": 760,
         "wires": [
             [
                 "f259309163901899"
@@ -669,8 +675,8 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1140,
-        "y": 560,
+        "x": 140,
+        "y": 800,
         "wires": []
     },
     {
@@ -699,32 +705,17 @@
         ]
     },
     {
-        "id": "13fcf2883393898a",
-        "type": "debug",
-        "z": "26da8ec8a60a9d75",
-        "name": "",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "false",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 1110,
-        "y": 120,
-        "wires": []
-    },
-    {
         "id": "04406821e76d86e2",
         "type": "ui_switch",
         "z": "26da8ec8a60a9d75",
+        "d": true,
         "name": "",
         "label": "Heater state",
         "tooltip": "",
         "group": "49b8362b1f102d88",
-        "order": 15,
+        "order": 26,
         "width": "6",
-        "height": "2",
+        "height": "1",
         "passthru": false,
         "decouple": "true",
         "topic": "topic",
@@ -740,8 +731,8 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 830,
-        "y": 420,
+        "x": 810,
+        "y": 520,
         "wires": [
             [
                 "1baefbd031bed57d"
@@ -752,6 +743,7 @@
         "id": "02b9363055f7cf39",
         "type": "function",
         "z": "26da8ec8a60a9d75",
+        "d": true,
         "name": "heaterStateGetter",
         "func": "\nvar p = JSON.parse(msg.payload)\n\nvar value =\"\"\nif (p[\"heaterState\"] == 0) {\n    value  = \"off\"\n}\nif (p[\"heaterState\"] == 1) {\n    value  = \"on\"\n}\n\n\n\nvar json = {\"topic\":\"autoDehumidifier\",\n    \"payload\": value\n}\n\n\nreturn json\n",
         "outputs": 1,
@@ -760,11 +752,10 @@
         "finalize": "",
         "libs": [],
         "x": 550,
-        "y": 420,
+        "y": 520,
         "wires": [
             [
-                "04406821e76d86e2",
-                "2eb62767d4a8bafd"
+                "04406821e76d86e2"
             ]
         ]
     },
@@ -782,24 +773,8 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1150,
-        "y": 420,
-        "wires": []
-    },
-    {
-        "id": "2eb62767d4a8bafd",
-        "type": "debug",
-        "z": "26da8ec8a60a9d75",
-        "name": "",
-        "active": false,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "false",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 830,
-        "y": 480,
+        "x": 1070,
+        "y": 520,
         "wires": []
     },
     {
@@ -807,7 +782,7 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "fan power getter",
-        "func": "var p = JSON.parse(msg.payload)\n\n\nvar json = {\"topic\":\"fanPower\",\n    \"payload\": p[\"fan\"] \n}\n\n\nreturn json\n",
+        "func": "var p = JSON.parse(msg.payload)\n\nif(!p.hasOwnProperty(\"fan\")){return;}\n\nflow.set(\"fan\", p[\"fan\"])\n\nvar json = {\"topic\":\"fanPower\",\n    \"payload\": p[\"fan\"] \n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -819,55 +794,10 @@
             [
                 "15b87b99c0fefd4a",
                 "42f49d5e6049d286",
-                "b7d529bf022fca42"
+                "b7d529bf022fca42",
+                "185aead36a310ed9"
             ]
         ]
-    },
-    {
-        "id": "e9cf2082b06a64a3",
-        "type": "ui_button",
-        "z": "26da8ec8a60a9d75",
-        "name": "Stir button",
-        "group": "49b8362b1f102d88",
-        "order": 2,
-        "width": "12",
-        "height": "1",
-        "passthru": true,
-        "label": "Stir",
-        "tooltip": "",
-        "color": "",
-        "bgcolor": "",
-        "className": "",
-        "icon": "",
-        "payload": "10000",
-        "payloadType": "str",
-        "topic": "topic",
-        "topicType": "msg",
-        "x": 430,
-        "y": 1140,
-        "wires": [
-            [
-                "b6eab7de040e4c93"
-            ]
-        ]
-    },
-    {
-        "id": "b6eab7de040e4c93",
-        "type": "mqtt out",
-        "z": "26da8ec8a60a9d75",
-        "name": "Stir",
-        "topic": "box/control/vibe",
-        "qos": "",
-        "retain": "false",
-        "respTopic": "",
-        "contentType": "",
-        "userProps": "",
-        "correl": "",
-        "expiry": "",
-        "broker": "67b58dab33c9118c",
-        "x": 770,
-        "y": 1100,
-        "wires": []
     },
     {
         "id": "15b87b99c0fefd4a",
@@ -877,8 +807,8 @@
         "label": "fan power",
         "tooltip": "",
         "group": "49b8362b1f102d88",
-        "order": 7,
-        "width": "6",
+        "order": 13,
+        "width": "5",
         "height": "1",
         "wrap": true,
         "passthru": false,
@@ -887,10 +817,10 @@
         "format": "{{value}}",
         "min": 0,
         "max": "100",
-        "step": 1,
+        "step": "0.1",
         "className": "",
-        "x": 860,
-        "y": 700,
+        "x": 820,
+        "y": 680,
         "wires": [
             [
                 "5d73c6ba0deb6825"
@@ -903,9 +833,9 @@
         "z": "26da8ec8a60a9d75",
         "name": "fanpowerchart",
         "group": "49b8362b1f102d88",
-        "order": 3,
-        "width": "12",
-        "height": "4",
+        "order": 16,
+        "width": "10",
+        "height": "3",
         "label": "fan power",
         "chartType": "line",
         "legend": "false",
@@ -915,7 +845,7 @@
         "dot": false,
         "ymin": "0",
         "ymax": "100",
-        "removeOlder": "2",
+        "removeOlder": "12",
         "removeOlderPoints": "",
         "removeOlderUnit": "3600",
         "cutout": 0,
@@ -935,8 +865,8 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 860,
-        "y": 820,
+        "x": 820,
+        "y": 800,
         "wires": [
             []
         ]
@@ -946,14 +876,14 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "VPD getter",
-        "func": "var p = JSON.parse(msg.payload)\n\nvar h = p[\"RH\"] /100\nvar T = p[\"T\"] *1\n\n//node.warn([\"humdity=\",h]);\n//node.warn([\"temp=\",T]);\n\n\n\nvpl = 0.61078 * Math.exp(17.27 * T / (T + 237.3))\n\nvpa = 0.61078 * Math.exp(17.27 * T / (T + 237.3)) * h\n\n\nvpd = vpl - vpa\n//node.warn(vpd)\n\nvar json = {\"topic\":\"VPD\",\n    \"payload\": vpd\n}\n\n\nreturn json\n",
+        "func": "var p = JSON.parse(msg.payload)\n\nvar h = p[\"RH\"] /100\nvar T = p[\"T\"] *1\n\n//node.warn([\"humdity=\",h]);\n//node.warn([\"temp=\",T]);\nif(!p.hasOwnProperty(\"RH\") || !p.hasOwnProperty(\"vpd\")){return;}\n\n// vpl = 0.61078 * Math.exp(17.27 * T / (T + 237.3))\n// vpa = 0.61078 * Math.exp(17.27 * T / (T + 237.3)) * h\n// vpd = vpl - vpa\nvpd = p[\"vpd\"]\n\nif(isNaN(vpd)){\n    node.warn(\"calculated VPD is not a NUMBER WTF!\")\n}\n//node.warn(vpd)\nflow.set(\"currentVPD\", vpd)\n\n\n\nvar json = {\"topic\":\"VPD\",\n    \"payload\": vpd\n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
         "x": 530,
-        "y": 740,
+        "y": 860,
         "wires": [
             [
                 "36097947e9959ab7"
@@ -966,19 +896,19 @@
         "z": "26da8ec8a60a9d75",
         "name": "VPDChart",
         "group": "49b8362b1f102d88",
-        "order": 16,
-        "width": "10",
+        "order": 2,
+        "width": "12",
         "height": "5",
         "label": "VPD",
         "chartType": "line",
         "legend": "false",
         "xformat": "HH:mm:ss",
-        "interpolate": "linear",
+        "interpolate": "bezier",
         "nodata": "",
         "dot": false,
         "ymin": "",
         "ymax": "",
-        "removeOlder": "2",
+        "removeOlder": "12",
         "removeOlderPoints": "",
         "removeOlderUnit": "3600",
         "cutout": 0,
@@ -998,8 +928,8 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 840,
-        "y": 860,
+        "x": 800,
+        "y": 880,
         "wires": [
             []
         ]
@@ -1029,7 +959,7 @@
         "z": "26da8ec8a60a9d75",
         "name": "Reset charts",
         "group": "49b8362b1f102d88",
-        "order": 20,
+        "order": 28,
         "width": "17",
         "height": "5",
         "label": "Resets",
@@ -1075,9 +1005,9 @@
         "label": "Target VPD",
         "tooltip": "",
         "group": "49b8362b1f102d88",
-        "order": 17,
-        "width": "6",
-        "height": "2",
+        "order": 3,
+        "width": "12",
+        "height": "1",
         "wrap": true,
         "passthru": false,
         "topic": "topic",
@@ -1087,8 +1017,8 @@
         "max": "1.6",
         "step": "0.1",
         "className": "",
-        "x": 830,
-        "y": 920,
+        "x": 810,
+        "y": 940,
         "wires": [
             [
                 "d48c98512a9cbbf9"
@@ -1109,8 +1039,8 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1160,
-        "y": 920,
+        "x": 1100,
+        "y": 940,
         "wires": []
     },
     {
@@ -1121,9 +1051,9 @@
         "label": "auto Vpd Control",
         "tooltip": "",
         "group": "49b8362b1f102d88",
-        "order": 14,
+        "order": 25,
         "width": "6",
-        "height": "2",
+        "height": "1",
         "passthru": false,
         "decouple": "true",
         "topic": "topic",
@@ -1139,8 +1069,8 @@
         "offcolor": "",
         "animate": false,
         "className": "",
-        "x": 900,
-        "y": 300,
+        "x": 840,
+        "y": 400,
         "wires": [
             [
                 "58a69d33dceb6b59"
@@ -1159,7 +1089,7 @@
         "finalize": "",
         "libs": [],
         "x": 600,
-        "y": 300,
+        "y": 400,
         "wires": [
             [
                 "976d97f1993b16a4"
@@ -1180,8 +1110,8 @@
         "correl": "",
         "expiry": "",
         "broker": "67b58dab33c9118c",
-        "x": 1200,
-        "y": 300,
+        "x": 1120,
+        "y": 400,
         "wires": []
     },
     {
@@ -1189,13 +1119,13 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "reset catcher",
-        "func": "if(msg.payload == \"hi\"){\n    return;\n} \nelse {\n   \n    \n    global.set(\"lastpayload\",Date.now());\n}\nreturn msg;",
+        "func": "if(msg.payload == \"hi\"){\n    return;\n} \nelse {\n    global.set(\"lastpayload\",Date.now());\n}\n\nvar p = JSON.parse(msg.payload)\nif(p.hasOwnProperty(\"P\")){\n    flow.set(\"P\", p[\"P\"])\n}\nif(p.hasOwnProperty(\"D\")){\n    flow.set(\"D\", p[\"D\"])\n}\nif(p.hasOwnProperty(\"I\")){\n    flow.set(\"I\", p[\"I\"])\n}\n\n\nreturn msg;",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 270,
+        "x": 290,
         "y": 180,
         "wires": [
             [
@@ -1213,7 +1143,9 @@
                 "fc92b3f74aed4f6a",
                 "bbf8894732effdbe",
                 "1eb8e6edb9e96d86",
-                "79817aeb50add8ba"
+                "79817aeb50add8ba",
+                "1a0c59ad5581886e",
+                "e70ff5ea8f38ded8"
             ]
         ]
     },
@@ -1239,14 +1171,14 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "targetVPD getter",
-        "func": "var p = JSON.parse(msg.payload)\n\n\nvar json = {\"topic\":\"targetVPD\",\n    \"payload\": p[\"targetVpd\"]\n}\n\n\nreturn json\n",
+        "func": "var p = JSON.parse(msg.payload)\n\n\nflow.set(\"targetVPD\", p[\"targetVpd\"])\nvar json = {\"topic\":\"targetVPD\",\n    \"payload\": p[\"targetVpd\"]\n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
         "x": 550,
-        "y": 920,
+        "y": 940,
         "wires": [
             [
                 "2677472d112fdc1c"
@@ -1269,13 +1201,13 @@
         ],
         "repeat": "60",
         "crontab": "",
-        "once": true,
+        "once": false,
         "onceDelay": 0.1,
         "topic": "",
         "payload": "",
         "payloadType": "date",
-        "x": 160,
-        "y": 1020,
+        "x": 180,
+        "y": 1120,
         "wires": [
             [
                 "9ef143a7d6578b99"
@@ -1293,30 +1225,13 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 600,
-        "y": 1020,
+        "x": 620,
+        "y": 1120,
         "wires": [
             [
                 "81fdec7aaed70467"
             ]
         ]
-    },
-    {
-        "id": "cb11736175da6329",
-        "type": "debug",
-        "z": "26da8ec8a60a9d75",
-        "name": "",
-        "active": false,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 750,
-        "y": 1260,
-        "wires": []
     },
     {
         "id": "315891178173b158",
@@ -1327,57 +1242,9 @@
         "haserroroutput": false,
         "outputs": 1,
         "x": 1010,
-        "y": 1020,
+        "y": 1120,
         "wires": [
             []
-        ]
-    },
-    {
-        "id": "cbf02c2271b83d6e",
-        "type": "inject",
-        "z": "26da8ec8a60a9d75",
-        "name": "co2 level checker",
-        "props": [
-            {
-                "p": "payload"
-            },
-            {
-                "p": "topic",
-                "vt": "str"
-            }
-        ],
-        "repeat": "1800",
-        "crontab": "",
-        "once": false,
-        "onceDelay": 0.1,
-        "topic": "",
-        "payload": "",
-        "payloadType": "date",
-        "x": 170,
-        "y": 1080,
-        "wires": [
-            [
-                "19150e2af476eb60"
-            ]
-        ]
-    },
-    {
-        "id": "19150e2af476eb60",
-        "type": "function",
-        "z": "26da8ec8a60a9d75",
-        "name": "Checkco2level",
-        "func": "var co2 = global.get(\"co2\");\n\n\nif(co2 < 800){\n    msg.payload = 10000\n}\n\nreturn msg;",
-        "outputs": 1,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 420,
-        "y": 1080,
-        "wires": [
-            [
-                "b6eab7de040e4c93"
-            ]
         ]
     },
     {
@@ -1398,7 +1265,7 @@
         "allowrate": false,
         "outputs": 1,
         "x": 800,
-        "y": 1020,
+        "y": 1120,
         "wires": [
             [
                 "315891178173b158"
@@ -1426,11 +1293,13 @@
         "topic": "",
         "payload": "",
         "payloadType": "date",
-        "x": 170,
-        "y": 1240,
+        "x": 210,
+        "y": 1200,
         "wires": [
             [
-                "d59f386dcc9ec205"
+                "d59f386dcc9ec205",
+                "fd7f7c52b6bfe01a",
+                "4f93d7c66357590b"
             ]
         ]
     },
@@ -1439,7 +1308,7 @@
         "type": "ui_text",
         "z": "26da8ec8a60a9d75",
         "group": "49b8362b1f102d88",
-        "order": 18,
+        "order": 27,
         "width": "6",
         "height": "1",
         "name": "",
@@ -1447,8 +1316,8 @@
         "format": "{{msg.payload}}",
         "layout": "row-spread",
         "className": "",
-        "x": 780,
-        "y": 1220,
+        "x": 940,
+        "y": 1260,
         "wires": []
     },
     {
@@ -1456,18 +1325,18 @@
         "type": "function",
         "z": "26da8ec8a60a9d75",
         "name": "secondsSinceLastPayload",
-        "func": "var lastpayload = global.get(\"lastpayload\");\n\nvar longestdiff = global.get(\"longestDiff\");\n\nif(longestdiff == false){\n    longestdiff =0;\n}\n\ndiff = Date.now() - lastpayload\nmsg.payload = (diff/ 1000) + \" seconds ago\"\n\n\n\nreturn msg;\n\n",
+        "func": "var lastpayload = global.get(\"lastpayload\");\n\nvar longestdiff = global.get(\"longestDiff\");\n\nif(longestdiff == false){\n    longestdiff =0;\n}\n\ndiff = Date.now() - lastpayload\nmsg.payload = (diff/ 1000)\n\n\n\nreturn msg;\n\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "// Code added here will be run once\n// whenever the node is started.\nglobal.set(\"lastDiff\", 0);",
         "finalize": "",
         "libs": [],
-        "x": 460,
-        "y": 1240,
+        "x": 440,
+        "y": 1200,
         "wires": [
             [
-                "42b30b567493f954",
-                "cb11736175da6329"
+                "16412fbd0a8bd471",
+                "795c92047ee9d54d"
             ]
         ]
     },
@@ -1478,7 +1347,7 @@
         "d": true,
         "name": "",
         "group": "49b8362b1f102d88",
-        "order": 21,
+        "order": 29,
         "width": "17",
         "height": "5",
         "label": "Ram chart",
@@ -1510,8 +1379,8 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 210,
-        "y": 680,
+        "x": 810,
+        "y": 340,
         "wires": [
             []
         ]
@@ -1520,15 +1389,16 @@
         "id": "79817aeb50add8ba",
         "type": "function",
         "z": "26da8ec8a60a9d75",
+        "d": true,
         "name": "ram Getter",
-        "func": "\nvar p = JSON.parse(msg.payload)\n\n\n\n\n\nvar json = {\"topic\":\"ram\",\n    \"payload\": p[\"ram\"] \n}\n\n\nreturn json\n",
+        "func": "\nvar p = JSON.parse(msg.payload)\n\n\nvar json = {\"topic\":\"ram\",\n    \"payload\": p[\"ram\"] \n}\n\n\nreturn json\n",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 210,
-        "y": 600,
+        "x": 530,
+        "y": 340,
         "wires": [
             [
                 "32f25dab62cbe53a"
@@ -1546,8 +1416,8 @@
                 "type": "msg"
             }
         ],
-        "x": 400,
-        "y": 1020,
+        "x": 440,
+        "y": 1120,
         "wires": [
             [
                 "e03ff1ccdfb68112"
@@ -1567,19 +1437,614 @@
         "format": "{{msg.payload}}",
         "layout": "col-center",
         "className": "",
-        "x": 880,
+        "x": 860,
         "y": 260,
         "wires": []
     },
     {
-        "id": "e0d2a11bf3985498",
+        "id": "40648a1fea3d5d1a",
+        "type": "ui_chart",
+        "z": "26da8ec8a60a9d75",
+        "name": "Effective Dehumidifier power chart",
+        "group": "49b8362b1f102d88",
+        "order": 22,
+        "width": "10",
+        "height": "5",
+        "label": "Effective Dehumidifier power",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "Calculating..",
+        "dot": false,
+        "ymin": "0",
+        "ymax": "100",
+        "removeOlder": "12",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "3600",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 880,
+        "y": 300,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c05c7605c06ba5ec",
+        "type": "ui_text",
+        "z": "26da8ec8a60a9d75",
+        "d": true,
+        "group": "49b8362b1f102d88",
+        "order": 12,
+        "width": "10",
+        "height": "1",
+        "name": "",
+        "label": "Long VPD state",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 180,
+        "y": 1300,
+        "wires": []
+    },
+    {
+        "id": "3289ad58b9c49ef5",
+        "type": "inject",
+        "z": "26da8ec8a60a9d75",
+        "name": "Every 30 seconds",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "30",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 150,
+        "y": 1480,
+        "wires": [
+            [
+                "d3e8ac510b879f93",
+                "24c82386a0c42a3d",
+                "71c8159642985349"
+            ]
+        ]
+    },
+    {
+        "id": "fd7f7c52b6bfe01a",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "d": true,
+        "name": "VPD ratio output",
+        "func": "var state = \"balanced\"\nvar vpdPastVals = flow.get(\"VPDPastVals\")\nvar targetVpd = flow.get(\"targetVPD\");\n\n\nif(vpdPastVals){\n    vpdPastVals = vpdPastVals.filter(x => !isNaN(x)) \n\n    var highCount = vpdPastVals.filter( x => x > targetVpd).length;\n    var lowCount = vpdPastVals.filter( x => x < targetVpd).length;\n    var balanceDiff = lowCount - highCount\n    \n    var skewPercent = Math.abs(balanceDiff) / 50; // buffer size\n    \n    if(skewPercent > 0.8 ){\n        if(balanceDiff < 0 ){\n            state = \"Too dry/cold\"\n        }\n        else{\n            state = \"Too wet/warm\"\n        }\n    }\n    \n    \n    \n    return {\"topic\": \"vpd state\",\n    \"payload\": `${state} ratio ${lowCount} : ${highCount} skew ${skewPercent * 100}%`\n    }\n}",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 180,
+        "y": 1260,
+        "wires": [
+            [
+                "c05c7605c06ba5ec"
+            ]
+        ]
+    },
+    {
+        "id": "8a4e48d667e20428",
+        "type": "ui_chart",
+        "z": "26da8ec8a60a9d75",
+        "d": true,
+        "name": "Last communication chart",
+        "group": "49b8362b1f102d88",
+        "order": 30,
+        "width": 0,
+        "height": 0,
+        "label": "Last communication",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "",
+        "dot": false,
+        "ymin": "",
+        "ymax": "",
+        "removeOlder": "12",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "3600",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 970,
+        "y": 1200,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "16412fbd0a8bd471",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "Add suffix",
+        "func": "msg.payload += \" seconds ago\"\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 740,
+        "y": 1260,
+        "wires": [
+            [
+                "42b30b567493f954"
+            ]
+        ]
+    },
+    {
+        "id": "795c92047ee9d54d",
+        "type": "delay",
+        "z": "26da8ec8a60a9d75",
+        "d": true,
+        "name": "",
+        "pauseType": "rate",
+        "timeout": "5",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "10",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": true,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 760,
+        "y": 1200,
+        "wires": [
+            [
+                "8a4e48d667e20428"
+            ]
+        ]
+    },
+    {
+        "id": "4f93d7c66357590b",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "dehumid power fan error",
+        "func": "\nvar dehumidPowerPastVals = flow.get(\"dehumidPowerPastVals\")\nvar target = 50;\nconst average = list => list.reduce((prev, curr) => parseFloat(prev) + parseFloat(curr)) / list.length;\n\nvar currentEffectivePower = flow.get(\"effectiveDehumidPower\")\n\n\nif(dehumidPowerPastVals){\n    \n    const avg = average(dehumidPowerPastVals);\n    \n    //testing currentval\n    const error = currentEffectivePower - target\n    flow.set(\"fanError\", error)\n    \n    \n    return {\"topic\": \"vpd state\",\n    \"payload\": `fan error ${error}`\n    }\n}",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 450,
+        "y": 1320,
+        "wires": [
+            [
+                "69515540f43c0eab"
+            ]
+        ]
+    },
+    {
+        "id": "69515540f43c0eab",
+        "type": "ui_text",
+        "z": "26da8ec8a60a9d75",
+        "d": true,
+        "group": "49b8362b1f102d88",
+        "order": 15,
+        "width": "10",
+        "height": "1",
+        "name": "",
+        "label": "dehumidpower error:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 740,
+        "y": 1320,
+        "wires": []
+    },
+    {
+        "id": "931c1693c143c6b2",
+        "type": "ui_text",
+        "z": "26da8ec8a60a9d75",
+        "group": "49b8362b1f102d88",
+        "order": 6,
+        "width": "10",
+        "height": "1",
+        "name": "",
+        "label": "humidity",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 800,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "1a0c59ad5581886e",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "targetHumidity getter",
+        "func": "var p = JSON.parse(msg.payload)\n\n\nflow.set(\"targetHu\", p[\"targetHu\"])\nvar json = {\"topic\":\"targetVPD\",\n    \"payload\": p[\"targetHu\"]\n}\n\n\nreturn json\n",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 560,
+        "y": 580,
+        "wires": [
+            [
+                "6990cc63772fdebf"
+            ]
+        ]
+    },
+    {
+        "id": "6990cc63772fdebf",
+        "type": "ui_text",
+        "z": "26da8ec8a60a9d75",
+        "group": "49b8362b1f102d88",
+        "order": 7,
+        "width": "10",
+        "height": "1",
+        "name": "",
+        "label": "target humidity",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 820,
+        "y": 580,
+        "wires": []
+    },
+    {
+        "id": "6d8570abe15db599",
+        "type": "ui_numeric",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "label": "P",
+        "tooltip": "",
+        "group": "49b8362b1f102d88",
+        "order": 8,
+        "width": "10",
+        "height": "1",
+        "wrap": false,
+        "passthru": true,
+        "topic": "topic",
+        "topicType": "msg",
+        "format": "{{value}}",
+        "min": "-10",
+        "max": 10,
+        "step": "0.1",
+        "className": "",
+        "x": 445.9999885559082,
+        "y": 1435.9999618530273,
+        "wires": [
+            [
+                "c37d55b54e1b090f"
+            ]
+        ]
+    },
+    {
+        "id": "d3e8ac510b879f93",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "P",
+        "func": "\n\nreturn {\"topic\": \"P\", \"payload\": flow.get(\"P\")}",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 325.9999885559082,
+        "y": 1435.9999618530273,
+        "wires": [
+            [
+                "6d8570abe15db599"
+            ]
+        ]
+    },
+    {
+        "id": "c37d55b54e1b090f",
+        "type": "mqtt out",
+        "z": "26da8ec8a60a9d75",
+        "name": "P control",
+        "topic": "box/control/P",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "67b58dab33c9118c",
+        "x": 600,
+        "y": 1420,
+        "wires": []
+    },
+    {
+        "id": "24c82386a0c42a3d",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "D",
+        "func": "\nreturn {\"topic\": \"D\", \"payload\": flow.get(\"D\")}",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 330,
+        "y": 1520,
+        "wires": [
+            [
+                "57123e78c8d1ea77"
+            ]
+        ]
+    },
+    {
+        "id": "57123e78c8d1ea77",
+        "type": "ui_numeric",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "label": "D",
+        "tooltip": "",
+        "group": "49b8362b1f102d88",
+        "order": 10,
+        "width": "10",
+        "height": "1",
+        "wrap": false,
+        "passthru": true,
+        "topic": "topic",
+        "topicType": "msg",
+        "format": "{{value}}",
+        "min": "0",
+        "max": "100",
+        "step": "1",
+        "className": "",
+        "x": 450,
+        "y": 1520,
+        "wires": [
+            [
+                "d39bdcd09019dd28"
+            ]
+        ]
+    },
+    {
+        "id": "d39bdcd09019dd28",
+        "type": "mqtt out",
+        "z": "26da8ec8a60a9d75",
+        "name": "D control",
+        "topic": "box/control/D",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "67b58dab33c9118c",
+        "x": 600,
+        "y": 1540,
+        "wires": []
+    },
+    {
+        "id": "71c8159642985349",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "I",
+        "func": "\nreturn {\"topic\": \"I\", \"payload\": flow.get(\"I\")}",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 330,
+        "y": 1480,
+        "wires": [
+            [
+                "8a29e20563e40659"
+            ]
+        ]
+    },
+    {
+        "id": "8a29e20563e40659",
+        "type": "ui_numeric",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "label": "I",
+        "tooltip": "",
+        "group": "49b8362b1f102d88",
+        "order": 9,
+        "width": "10",
+        "height": "1",
+        "wrap": false,
+        "passthru": true,
+        "topic": "topic",
+        "topicType": "msg",
+        "format": "{{value}}",
+        "min": "-10",
+        "max": 10,
+        "step": "0.1",
+        "className": "",
+        "x": 450,
+        "y": 1480,
+        "wires": [
+            [
+                "dfbce4f0c5e7b5ff"
+            ]
+        ]
+    },
+    {
+        "id": "dfbce4f0c5e7b5ff",
+        "type": "mqtt out",
+        "z": "26da8ec8a60a9d75",
+        "name": "I control",
+        "topic": "box/control/I",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "67b58dab33c9118c",
+        "x": 600,
+        "y": 1480,
+        "wires": []
+    },
+    {
+        "id": "e70ff5ea8f38ded8",
+        "type": "function",
+        "z": "26da8ec8a60a9d75",
+        "name": "humidity error",
+        "func": "var p = JSON.parse(msg.payload)\n\nif(!p.hasOwnProperty(\"RH\") || !p.hasOwnProperty(\"targetHu\")){return;}\nvar error = p[\"RH\"] - p[\"targetHu\"]\n\nreturn {\"topic\":\"error\",\n    \"payload\":error\n}",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 540,
+        "y": 1000,
+        "wires": [
+            [
+                "8840b1c4650c95d5"
+            ]
+        ]
+    },
+    {
+        "id": "8840b1c4650c95d5",
+        "type": "ui_chart",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "group": "49b8362b1f102d88",
+        "order": 30,
+        "width": "17",
+        "height": "5",
+        "label": "humidity error",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "bezier",
+        "nodata": "",
+        "dot": false,
+        "ymin": "-5",
+        "ymax": "5",
+        "removeOlder": "30",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "60",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#db4848",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 820,
+        "y": 1000,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "185aead36a310ed9",
+        "type": "ui_chart",
+        "z": "26da8ec8a60a9d75",
+        "name": "",
+        "group": "49b8362b1f102d88",
+        "order": 31,
+        "width": "17",
+        "height": "5",
+        "label": "short term fan power",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "",
+        "dot": false,
+        "ymin": "",
+        "ymax": "",
+        "removeOlder": "30",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "60",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 840,
+        "y": 840,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "3921fb464c0ad399",
         "type": "ui_spacer",
         "z": "26da8ec8a60a9d75",
         "name": "spacer",
         "group": "49b8362b1f102d88",
-        "order": 19,
-        "width": "20",
-        "height": "1"
+        "order": 11,
+        "width": "12",
+        "height": "4"
     },
     {
         "id": "67b58dab33c9118c",

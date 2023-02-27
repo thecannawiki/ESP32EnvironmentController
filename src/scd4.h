@@ -1,0 +1,2 @@
+void initSensors();
+void getSensorReadings();

@@ -16,6 +16,8 @@ Hardware support and default pins
 #include <mathsfunctions.h>
 #include <led.h>
 #include <buffer.h>
+#include <mqttResponse.h>
+#include <NVM.h>
 #ifdef BME
   #include <bme.h>
 #endif
@@ -25,6 +27,8 @@ Hardware support and default pins
 
 
 int PIDLookback = 12; //number of samples to look back on for PID 
+
+
 
 //Functions for debug
 void scanForWifi(){
@@ -157,11 +161,7 @@ void initNonVolitileMem(){
   Serial.println(sensorjson);
 }
 
-void saveToNVM(){
-  preferences.end();
-  Serial.print("§ ");
-  preferences.begin("controller", false);
-}  
+
 
 void pressDehumidifierButton(){
   pinMode(dehumidifierControlPin, OUTPUT);
@@ -291,9 +291,33 @@ void freezeWatchdog(void * parameter){
   }
 }
 
+void reconnectWifi(){
+  try{
+ 
+  wifiMulti.run();
+  int waitCount = 0;
+  Serial.println("");
+  Serial.print("Connecting wifi");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(2000);
+    waitCount++;
+    if(waitCount > 10){
+      Serial.print("");
+      break;
+    }
+  }
+   } catch (std::exception& e) {
+      Serial.println("wifi exception");
+   }
+}
+
 
 void mqttreconnect() {    //TODO check mqtt stuff is defined
-  
+  if(WiFi.status() != WL_CONNECTED){
+    Serial.println("can't reconnect mqtt. No Wifi connection");
+    return;
+  }
   int errcount = 0;
   // Loop until we're reconnected
   while (!mqttclient.connected()) {
@@ -303,18 +327,8 @@ void mqttreconnect() {    //TODO check mqtt stuff is defined
     bool connectSuccess = mqttclient.connect(WiFi.macAddress().c_str(), MQTTUSER, MQTTPASS);
     if (connectSuccess) { //TODO: move out of if and add error handling
       Serial.println("connected");
-      
       // Subscribe
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/dehumidifier/auto"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/dehumidifier/autoVpd"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/dehumidifier/lower"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/dehumidifier/upper"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/dehumidifier/press"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/exhaust"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/targetVpd"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/P"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/I"}).data());
-      mqttclient.subscribe((MQTTCONTROLTOPIC + std::string{"/D"}).data());
+      mqttSubscribeTopics();
     } else {
       Serial.print("failed, client state=");
       Serial.print(mqttclient.state());
@@ -353,27 +367,14 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
   Serial.print(" | ");
   Serial.println(messageTemp);
 
-  if (String(topic) == (MQTTCONTROLTOPIC + std::string{"/exhaust"}).data()) {
-    float num = messageTemp.toFloat();
-    if(num>100){ num = 100;}
-    if(num<0){num = 0;}
-    if(num != fanPower){
-      fanChanged = true;
+  mqttHandle(topic, messageTemp);
+
+
+
+  if (String(topic) == (MQTTCONTROLTOPIC + std::string{"/dehumidifier/toggle"}).data()) {
+    if(!lockHVAC){
+      pressDehumidifierButton();
     }
-    fanPower = num;
-    preferences.putFloat("fanPower", fanPower);
-    saveToNVM();
-
-    char data[20];
-    snprintf_P(data, sizeof(data), PSTR("{\"fan\":%f}"), fanPower);
-    mqttclient.publish(MQTTPUBLISHTOPIC, data);
-
-    return;
-  }
-
-
-  if (String(topic) == (MQTTCONTROLTOPIC + std::string{"/dehumidifier/press"}).data()) {
-    pressDehumidifierButton();
     return;
   }
 
@@ -596,41 +597,83 @@ void fanPID(){
       }
 }
 
+void checkSensors(){
+  float num = 0;
+  int dupecount =0;
+  for(int i=1; i<5; i++){
+  int index = humidityBuffer.newest_index-i;
+  if(index < 0){
+      index = BUFFER_SIZE - index;
+  }
+  float c  = humidityBuffer.data[index];
+  if(c == num){
+      dupecount++;
+  }
+  num = c;
+  }
+
+
+  if(dupecount > 2){
+  Serial.println("reinit sensors");
+  initSensors();
+  }
+}
+
 
 void mainloop(void * parameter){
   vTaskDelay(1000);
+  int sensorTime = 5; //num of loop interations between sensor reading/PID. Every x loops
+  #ifdef BME
+    sensorTime = 1;
+    sensorInterval = 1000;
+  #endif
+
   while(true){
     if(fanChanged){           //cool trick to recreate fan task at a good time (where it wont crash)
       updateFanPower();
       fanChanged=false;
     }
+
+    if(lockHVAC && dehumidiferState){   //turn off dehumidifer when HVAC is locked (not perfect as this is now a sideffect of the var)
+      pressDehumidifierButton();
+    }
+   
     
-    if(loopCounter%5 == 0){
+    if(loopCounter%sensorTime == 0){
+      checkSensors();
       getSensorReadings();
-      if(automaticVpd){
+      if(!lockHVAC){
         fanPID();
+        if(automaticDehumidifier){
+          operateDehumidifier();
+        }
+      }
+    }
+
+    if(loopCounter%10 == 0){
+      Serial.print("checking wifi ..");
+      if(WiFi.status() != WL_CONNECTED){
+        bool success = WiFi.reconnect();
+        if(success == ESP_OK){
+          Serial.println("connected");
+        }
+        Serial.println("failed");
       }
     }
 
     if(loopCounter%5 == 0){    //every sensorInterval * num seconds i%num (10 secs)
-      targetHumidity  = calcTargetHumidityForVpd(targetVpd, temp);
-      Serial.print("±RH ");
-      lowerHumidityBound = targetHumidity - 0.5f;
-      upperHumidityBound = targetHumidity + 0.5f;
-      if(automaticDehumidifier){
-        if(automaticVpd){
-          if(targetHumidity != -1){
-            preferences.putInt("lowerBound", lowerHumidityBound);
-            preferences.putInt("higherBound", upperHumidityBound);
-            //saveToNVM();
-          } 
-        }
-        operateDehumidifier();
+      if(automaticVpd){
+        targetHumidity = calcTargetHumidityForVpd(targetVpd, temp);
+        Serial.print("±RH ");
+        lowerHumidityBound = targetHumidity - 0.5f;
+        upperHumidityBound = targetHumidity + 0.5f;
       }
+      
 
-      if(mqttclient.connected()){
+      if(WiFi.status() == WL_CONNECTED && mqttclient.connected()){
         mqttPublishSensorData();
       }
+
     }
     if(loopCounter %30 == 0){
       tm time = refreshNetworkTime();
@@ -659,20 +702,20 @@ void mqttLoop(void * parameter){ //Keeps the mqtt client connected and receives/
       mqttclient.loop();
     } else {
       try{
-        Serial.println("");
-        Serial.print("ram b4 ssl ");
-        Serial.print(ESP.getFreeHeap());
+        //Serial.println("");
+        //Serial.print("ram b4 ssl ");
+        //Serial.print(ESP.getFreeHeap());
         mqttreconnect();
-        Serial.print("ram after ssl ");
-        Serial.print(ESP.getFreeHeap());
-        Serial.println("");
-        mqttclient.loop();
+        //Serial.print("ram after ssl ");
+        //Serial.print(ESP.getFreeHeap());
+        //Serial.println("");
+        //mqttclient.loop();
       } catch (std::exception& e) {
         Serial.print("mqtt reconnect failed");
         vTaskDelay(5000);
       }
     }
-    vTaskDelay(1000);
+    vTaskDelay(2000);
   }
 }
 
@@ -710,18 +753,27 @@ void setup() {
   delay(200);
 
   //Connect wifi
-    Serial.println("starting WIFI..");
-    wifiMulti.addAP(SSIDNAME, WIFIPASS);    //Add additional networks here
-    wifiMulti.run();
+  Serial.println("starting WIFI..");
+  wifiMulti.addAP(SSIDNAME, WIFIPASS);    //Add additional networks here
+  uint8_t isWifi = wifiMulti.run();
+  Serial.println(isWifi);
+  Serial.println(WiFi.status());
+
+  if(isWifi != 255){  //if there is an available network, wait for connection
     while (WiFi.status() != WL_CONNECTED) {
       Serial.print(".");
       delay(2000);
+      //TODO bail out after a timeout
     }
-    Serial.print("Connected to: ");
-    Serial.println(SSIDNAME);
-    Serial.println(WiFi.RSSI());
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
+
+    if(WiFi.status() == WL_CONNECTED) {
+      Serial.print("Connected to: ");
+      Serial.println(SSIDNAME);
+      Serial.println(WiFi.RSSI());
+      Serial.print("IP address: ");
+      Serial.println(WiFi.localIP());
+    }
+  }
 
   //Setup MQTT TODO check MQTT info is defined in creds
   Serial.print("MQTT URL ");

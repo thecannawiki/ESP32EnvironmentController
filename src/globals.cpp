@@ -41,6 +41,7 @@ bool automaticVpd = true;
 bool heaterState = false;
 float fanPower = 30;        //float between 0 and 100
 float minpercentvalue = 0.25f; //min power percentage required to make fan spin e.g 0.25 for 25%
+bool lockHVAC = false;
 
 //pinout
 int dehumidifierControlPin = 13;

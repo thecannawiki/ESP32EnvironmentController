@@ -39,27 +39,7 @@
         }
         humidityBufferWrite(humidity);
 
-        float num = 0;
-        int dupecount =0;
-        for(int i=1; i<5; i++){
-        int index = humidityBuffer.newest_index-i;
-        if(index < 0){
-            index = BUFFER_SIZE - index;
-        }
-        float c  = humidityBuffer.data[index];
-        if(c == num){
-            dupecount++;
-        }
-        num = c;
-        }
-     
-     
-        if(dupecount > 2){
-        Serial.println("reinit sensors");
-        initSensors();
-        //scd4x.reinit();
-        return;
-        }
+        
 
     }
     }

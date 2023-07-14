@@ -41,6 +41,7 @@ extern bool automaticVpd;
 extern bool heaterState;
 extern float fanPower;
 extern float minpercentvalue; //min power percentage required to make fan spin 
+extern bool lockHVAC;    //prevents changes to any HVAC equiptment
 
 //pinout
 extern int dehumidifierControlPin;

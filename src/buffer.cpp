@@ -17,5 +17,3 @@ enum BufferStatus errorBufferWrite(float byte){
     errorBuffer.newest_index = next_index;
     return BUFFER_OK;
 }
-
-

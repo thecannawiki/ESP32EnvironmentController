@@ -84,6 +84,7 @@ extern int fanPWMchannel;
 extern int resolution;
 extern int maxPWMval;
 extern bool fanChanged;
+extern float softMaxPWM;
 
 //global objects
 extern WiFiMulti wifiMulti;

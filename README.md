@@ -59,6 +59,6 @@ As both sensors require pins 21 and 22 you may need a splitter cable or breadboa
 ## Peripheral connections:
 This controller firmware can also control other devices!
 
-* An external fan be controlled via a switching transistor and pin 12 (Tested at 12v)
+* An external fan be controlled via a switching transistor (such as the 2N3904) and pin 12 (Tested at 12v)
 * A dehumidifier can be attached via a switching transistor or relay on pin 13. e.g this can be used with a transistor to press a momentary on/off button, or to control a relay switching the dehumidifier. May not work with all dehumidifiers without modification.
 * A Neopixel LED can be connected to 5v and Pin 16 where it will act as a status indicator. This mostly for development and debug purposes.

@@ -13,12 +13,17 @@ std::unordered_map<std::string, std::function<void(const String&)>> functionDict
 const void handleFan(const String& message) {
     if(!lockHVAC){
       float num = message.toFloat();
+      if(num>softMaxFan){
+        num = softMaxFan;
+      }
       if(num>100){ num = 100;}
       if(num<0){num = 0;}
+     
       if(num != fanPower){
+        fanPower = num;
         fanChanged = true;
+        Serial.println("Fan power changed!");
       }
-      fanPower = num;
       preferences.putFloat("fanPower", fanPower);
       saveToNVM();
 
@@ -29,6 +34,25 @@ const void handleFan(const String& message) {
     else{
       Serial.println("oop HVAC controls locked");
     }
+}
+
+const void handleSoftMaxFan(const String& message){
+  float num = message.toFloat();
+  if(num>100){ num = 100;}
+  if(num<0){num = 0;}
+
+  softMaxFan = num;
+  if(fanPower > num){ 
+    fanPower = num;
+    fanChanged = true;
+  }
+
+  preferences.putFloat("softMaxFan", num);
+  saveToNVM();
+
+  char data[30];
+  snprintf_P(data, sizeof(data), PSTR("{\"softMaxFan\":%f}"), num);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
 const void handleTranspirationMeasurement(const String& message){
@@ -104,12 +128,11 @@ const void handleSetDehumidifierAuto(const String& message){
   if(message == "on"){
       automaticDehumidifier = true;
       Serial.println("automatic dehumidifer control enabled");
-    }
-    else if(message == "off"){
-      automaticDehumidifier = false;
-      automaticVpd = false;
-      Serial.println("automatic dehumidifer control disabled");
-    }
+  }
+  else if(message == "off"){
+    automaticDehumidifier = false;
+    Serial.println("automatic dehumidifer control disabled");
+  }
     preferences.putBool("autoDehumid", automaticDehumidifier);
     saveToNVM();
 
@@ -117,20 +140,35 @@ const void handleSetDehumidifierAuto(const String& message){
     snprintf_P(data, sizeof(data), PSTR("{\"autoDehumid\":%d}"), automaticDehumidifier);
     mqttclient.publish(MQTTPUBLISHTOPIC, data);
     //mqttPublishSensorData();
-  }
+}
 
-const void handleSetDehumidiferAutoVpd(const String& message){
+const void handleSetFanAutoVpd(const String& message){
   if(message == "on"){
-      automaticVpd = true;
+      automaticFanVpd = true;
     }
     else if(message == "off"){
-      automaticVpd = false;
+      automaticFanVpd = false;
     }
-    preferences.putBool("autoVpd", automaticVpd);
+    preferences.putBool("autoVpd", automaticFanVpd);
     saveToNVM();
 
     char data[50];
-    snprintf_P(data, sizeof(data), PSTR("{\"autoVpd\":%d}"), automaticVpd);
+    snprintf_P(data, sizeof(data), PSTR("{\"autoVpd\":%d}"), automaticFanVpd);
+    mqttclient.publish(MQTTPUBLISHTOPIC, data);
+}
+
+const void handleSetDehumidPrimaryMode(const String& message){
+  if(message == "on"){
+      dehumidifierPrimaryMode = true;
+    }
+    else if(message == "off"){
+      dehumidifierPrimaryMode = false;
+    }
+    preferences.putBool("primaryHumid", dehumidifierPrimaryMode);
+    saveToNVM();
+
+    char data[50];
+    snprintf_P(data, sizeof(data), PSTR("{\"primaryHumid\":%d}"), dehumidifierPrimaryMode);
     mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
@@ -177,10 +215,12 @@ const void handlesetHeater(const String& message){
 
 /////// define function key (2/4)
 const std::string fanPowerTopicName = (MQTTCONTROLTOPIC + std::string{"/exhaust"}).data();
+const std::string fanSoftMax = (MQTTCONTROLTOPIC + std::string{"/exhaust/softMax"}).data();
 const std::string transpirationMeasurement = (MQTTCONTROLTOPIC + std::string{"/transTest"}).data();
 const std::string dehumidiferToggle = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/toggle"}).data();
 const std::string dehumidiferAuto = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/auto"}).data();
-const std::string dehumidiferautoVpd = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/autoVpd"}).data();
+const std::string dehumidiferPrimary = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/primary"}).data();
+const std::string fanAutoVpd = (MQTTCONTROLTOPIC + std::string{"/exhaust/autoVpd"}).data();
 const std::string dehumidiferLower = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/lower"}).data();
 const std::string dehumidiferUpper = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/upper"}).data();
 const std::string setTargetVpd = (MQTTCONTROLTOPIC + std::string{"/targetVpd"}).data();
@@ -194,7 +234,9 @@ const std::string setD = (MQTTCONTROLTOPIC + std::string{"/D"}).data();
 /// @brief  (3/4)
 void mqttSubscribeTopics(){
   mqttclient.subscribe(dehumidiferAuto.data());
-  mqttclient.subscribe(dehumidiferautoVpd.data());
+  mqttclient.subscribe(fanAutoVpd.data());
+  mqttclient.subscribe(fanSoftMax.data());
+  mqttclient.subscribe(dehumidiferPrimary.data());
   mqttclient.subscribe(dehumidiferLower.data());
   mqttclient.subscribe(dehumidiferUpper.data());
   mqttclient.subscribe(dehumidiferToggle.data());
@@ -212,7 +254,9 @@ void mqttHandle(char* topic, String message) {
     functionDict[fanPowerTopicName] = handleFan;
     functionDict[transpirationMeasurement] = handleTranspirationMeasurement;
     functionDict[dehumidiferAuto] = handleSetDehumidifierAuto;
-    functionDict[dehumidiferautoVpd] = handleSetDehumidiferAutoVpd;
+    functionDict[dehumidiferPrimary] = handleSetDehumidPrimaryMode;
+    functionDict[fanAutoVpd] = handleSetFanAutoVpd;
+    functionDict[fanSoftMax] = handleSoftMaxFan;
     functionDict[dehumidiferLower] = handlelowerBound;
     functionDict[dehumidiferUpper] = handleupperbound;
     functionDict[dehumidiferToggle] = toggleDehumidifier;

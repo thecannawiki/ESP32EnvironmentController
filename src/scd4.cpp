@@ -23,25 +23,22 @@
 
 
     void getSensorReadings(){   //This can be done every 5 seconds
-    if(SCD40Mounted){
-        uint16_t error = scd4x.readMeasurement(co2, temp, humidity);
-        // Serial.println(co2);
-        // Serial.println(temp);
-        // Serial.println(humidity);
-        if(error || (co2 == -1 || temp == -1 || humidity == -1)){
-        Serial.print("Error reading sensor values from SC40 ::");
-        char errorMessage[256];
-        errorToString(error, errorMessage, 256);
-        Serial.println(errorMessage);
-        }else{
-        Serial.print("R ");
-        Serial.print(humidity, 4);
+        if(SCD40Mounted){
+            uint16_t error = scd4x.readMeasurement(co2, temp, humidity);
+            // Serial.println(co2);
+            // Serial.println(temp);
+            // Serial.println(humidity);
+            if(error || co2 == -1 || temp == -1 || humidity == -1){
+                Serial.print("Error reading sensor values from SC40 ::");
+                char errorMessage[256];
+                errorToString(error, errorMessage, 256);
+                Serial.println(errorMessage);
+            } else {
+                Serial.print("R ");
+                Serial.print(humidity, 4);
+            }
+            humidityBufferWrite(humidity);
         }
-        humidityBufferWrite(humidity);
-
-        
-
-    }
     }
 
 #endif

@@ -120,7 +120,7 @@ void UpdateSensorJson(){
   doc["vpd"] = trimmedfloat;
   dtostrf(targetVpd, 5, 4, trimmedfloat); 
   doc["targetVpd"] = trimmedfloat;
-  doc["autoVpd"] = automaticVpd;
+  doc["autoFanVpd"] = automaticFanVpd;
   dtostrf(targetHumidity, 5, 4, trimmedfloat);
   doc["targetHu"] = trimmedfloat;
   dtostrf(P, 5, 4, trimmedfloat);
@@ -135,6 +135,10 @@ void UpdateSensorJson(){
     doc["dehumidState"] = dehumidiferState;
   }
   doc["autoDehumid"] = automaticDehumidifier;
+  // too much data
+  
+  //doc["primaryHumid"] = dehumidifierPrimaryMode;
+
     // dtostrf(lowerHumidityBound, 5, 4, trimmedfloat);
   // doc["lowerBound"] = trimmedfloat;
   // dtostrf(upperHumidityBound, 5, 4, trimmedfloat);
@@ -145,6 +149,7 @@ void UpdateSensorJson(){
 }
 
 void initNonVolitileMem(){
+  // TODO default values are duplicated here
   preferences.begin("controller", false); 
   fanPower = preferences.getFloat("fanPower", 0.0f);
   dehumidiferState = preferences.getBool("dehumidifier", false);
@@ -154,9 +159,11 @@ void initNonVolitileMem(){
   I = preferences.getFloat("I", 0.2f);
   D = preferences.getFloat("D", 10.0f);
   automaticDehumidifier = preferences.getBool("autoDehumid", true);
-  automaticVpd = preferences.getBool("autoVpd", true);
+  automaticFanVpd = preferences.getBool("autoVpd", true);
+  dehumidifierPrimaryMode = preferences.getBool("primaryHumid", false);
   targetVpd = preferences.getFloat("tvpd", 1.0f);
   heaterState = preferences.getBool("headerState", false);
+  softMaxFan = preferences.getFloat("softMaxFan", 100.0f);
   
   UpdateSensorJson();
   Serial.println("retrieved from NVM: ");
@@ -290,6 +297,7 @@ void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-100
 
   preferences.putFloat("fanPower", fanPower);
   saveToNVM();
+  Serial.println("fan updated");
   //esp_task_wdt_reset();
 }
 
@@ -386,7 +394,7 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
   mqttHandle(topic, messageTemp);
 }
 
-void operateDehumidifier(){   //if humidity too high turn on the dehumidifier and vice-versa
+void operateDehumidifierOnBounds(){   //if humidity too high turn on the dehumidifier and vice-versa
   if(humidity>=(float)-1){
     Serial.print("O ");
     if(dehumidiferState){ //dehumidifier on
@@ -398,6 +406,16 @@ void operateDehumidifier(){   //if humidity too high turn on the dehumidifier an
         setDehumidiferState(true);
       }
     }
+  }
+}
+
+void operateDehumidifierOnFanUsage(){
+  // TODO this should probs be half of fan soft max
+  if (fanPower >= softMaxFan / 2.0f){ // 50% of max fan allowed 
+    setDehumidiferState(true);
+  }
+  if (fanPower <= softMaxFan / 3.0f){ // 33.3% of max fan allowed 
+    setDehumidiferState(false);
   }
 }
 
@@ -478,9 +496,10 @@ void fanPID(){
       float Ifan = calcIfan();
 
       float newfan = fanPower + Pfan + Dfan + Ifan;
+      if(newfan > softMaxFan){ newfan = softMaxFan;}
       if(newfan <=0){newfan = 0.1f;}
       if(newfan >=100){newfan = 100;}
-      if(abs(newfan - fanPower) >= 0.1f){
+      if(abs(newfan - fanPower) >= 0.0f){
        
         Serial.print("new fan power ");
         Serial.println(newfan);
@@ -521,8 +540,9 @@ void mainloop(void * parameter){
   #endif
 
   while(true){
-    if(fanChanged){           //cool trick to recreate fan task at a good time (where it wont crash)
-      updateFanPower();
+    // 0 is for the transpiration test so fan power can change when Hvac is locked and power is 0
+    if(fanChanged && (!lockHVAC || fanPower == 0)){         
+      updateFanPower();  //cool trick to recreate fan task at a good time (where it wont crash)
       fanChanged=false;
     }
 
@@ -540,10 +560,16 @@ void mainloop(void * parameter){
     if(loopCounter%sensorTime == 0){
       checkSensors();
       getSensorReadings();
-      if(!lockHVAC && automaticVpd){
-        fanPID();
+      if(!lockHVAC){
+        if(automaticFanVpd){
+          fanPID();
+        }
         if(automaticDehumidifier){
-          operateDehumidifier();
+          if(dehumidifierPrimaryMode){
+            operateDehumidifierOnBounds();
+          } else {
+            operateDehumidifierOnFanUsage();
+          }
         }
       }
     }
@@ -561,12 +587,12 @@ void mainloop(void * parameter){
     }
 
     if(loopCounter%5 == 0){    //every sensorInterval * num seconds i%num (10 secs)
-      if(automaticVpd){
-        targetHumidity = calcTargetHumidityForVpd(targetVpd, temp);
-        Serial.print("±RH ");
-        lowerHumidityBound = targetHumidity - 0.5f;
-        upperHumidityBound = targetHumidity + 0.5f;
-      }
+  
+      targetHumidity = calcTargetHumidityForVpd(targetVpd, temp);
+      Serial.print("±RH ");
+      upperHumidityBound = targetHumidity + 0.5f;
+      lowerHumidityBound = targetHumidity - 0.5f;
+  
       
       if(WiFi.status() == WL_CONNECTED && mqttclient.connected()){
         mqttPublishSensorData();

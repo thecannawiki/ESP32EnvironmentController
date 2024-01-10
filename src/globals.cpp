@@ -37,10 +37,12 @@
 //hardware
 bool dehumidiferState = false;
 bool automaticDehumidifier = true;
-bool automaticVpd = true;
+bool automaticFanVpd = true;
+bool dehumidifierPrimaryMode = false; // Primary mode means dehumidifier/humidifier will operate on bounds around target humidity, Secondary controls based on fan power usage
 bool heaterState = false;
 float fanPower = 30;        //float to 1dp between 0 and 100
 float minpercentvalue = 0.0f; //min power percentage required to make fan spin e.g 0.25 for 25%
+float softMaxFan = 100.0f; //soft limit on fan percentage
 bool lockHVAC = false;
 
 //pinout
@@ -53,7 +55,7 @@ int neopixelPin = 19;
 //environ vals
 float temp = -1;
 float humidity = -1;
-float targetHumidity = -1;
+float targetHumidity = 60;  //Sensible default
 uint16_t co2 = -1;
 float tvoc = 0;
 float upperHumidityBound = 60.0f;
@@ -69,7 +71,6 @@ float I = 0.1;
 float D = 0.1;
 
 
-
 //time
 const char* ntpServer = "pool.ntp.org";
 long gmtOffset_sec = 0;
@@ -81,7 +82,7 @@ char msg[50];
 int value = 0;
 
 // setting PWM properties
-int freq = 100000;
+int freq = 50;
 int fanPWMchannel = 0;
 int resolution = 12;
 int maxPWMval = 4095;

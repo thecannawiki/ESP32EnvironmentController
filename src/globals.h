@@ -37,9 +37,11 @@
 
 extern bool dehumidiferState;
 extern bool automaticDehumidifier;
-extern bool automaticVpd;
+extern bool automaticFanVpd;
+extern bool dehumidifierPrimaryMode;
 extern bool heaterState;
 extern float fanPower;
+extern float softMaxFan;
 extern float minpercentvalue; //min power percentage required to make fan spin 
 extern bool lockHVAC;    //prevents changes to any HVAC equiptment
 

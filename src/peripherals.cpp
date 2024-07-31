@@ -23,3 +23,18 @@ void setDehumidiferState(bool state){
   dehumidiferState = state;
   preferences.putBool("dehumidifier", dehumidiferState);
 }
+
+
+void setHeaterState(bool state){
+
+  if(state){
+    digitalWrite(heaterControlPin, HIGH);  
+    Serial.println("turning heater ON");
+  } else {
+    digitalWrite(heaterControlPin, LOW);
+    Serial.println("turning heater OFF");
+  }
+
+  heaterState = state;
+  preferences.putBool("headerState", heaterState);
+}

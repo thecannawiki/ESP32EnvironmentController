@@ -1,2 +1,2 @@
-void initSensors();
-void getSensorReadings();
+bool initSensors();
+bool getSensorReadings();

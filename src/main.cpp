@@ -26,6 +26,8 @@ Hardware support and default pins
   #include <scd4.h>
 #endif
 
+int sensorMountFailCount = 0;
+int sensorReadFailCount = 0;
 
 int PIDLookback = 12; //number of samples to look back on for PID 
 
@@ -84,8 +86,6 @@ void i2cScan(){
 }
 
 
-	
-
 tm refreshNetworkTime(){
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
@@ -97,37 +97,31 @@ tm refreshNetworkTime(){
 }
 
 
-
-
-
-
 void UpdateSensorJson(){
   StaticJsonDocument<320> doc;  
   char trimmedfloat[10];
-  if(temp != -1){
-    dtostrf(temp, 5, 4, trimmedfloat);  
-    doc["T"] = trimmedfloat;
-  }
-
-  if(humidity != -1){
-    dtostrf(humidity, 5, 4, trimmedfloat); 
-    doc["RH"] = trimmedfloat;
-  }
+  
+  dtostrf(temp, 5, 3, trimmedfloat);  
+  doc["T"] = trimmedfloat;
+  
+  dtostrf(humidity, 5, 4, trimmedfloat); 
+  doc["RH"] = trimmedfloat;
+  
   if(co2 != 65535){doc["co2"] = co2;}   // 65535 is the co2 value from the SCD-40 when its still warming up
 
-  doc["tvoc"] = tvoc;
+  // doc["tvoc"] = tvoc;
   dtostrf(calcVpd(temp, humidity), 5, 4, trimmedfloat); 
   doc["vpd"] = trimmedfloat;
-  dtostrf(targetVpd, 5, 4, trimmedfloat); 
+  dtostrf(targetVpd, 5, 3, trimmedfloat); 
   doc["targetVpd"] = trimmedfloat;
   doc["autoFanVpd"] = automaticFanVpd;
-  dtostrf(targetHumidity, 5, 4, trimmedfloat);
+  dtostrf(targetHumidity, 5, 3, trimmedfloat);
   doc["targetHu"] = trimmedfloat;
-  dtostrf(P, 5, 4, trimmedfloat);
+  dtostrf(P, 5, 3, trimmedfloat);
   doc["P"] = trimmedfloat;
-  dtostrf(I, 5, 4, trimmedfloat);
+  dtostrf(I, 5, 3, trimmedfloat);
   doc["I"] = trimmedfloat;
-  dtostrf(D, 5, 4, trimmedfloat);
+  dtostrf(D, 5, 3, trimmedfloat);
   doc["D"] = trimmedfloat;
   if(!lockHVAC){
     dtostrf(fanPower, 5, 1, trimmedfloat);
@@ -143,7 +137,7 @@ void UpdateSensorJson(){
   // doc["lowerBound"] = trimmedfloat;
   // dtostrf(upperHumidityBound, 5, 4, trimmedfloat);
   // doc["upperBound"] = trimmedfloat;
-  //doc["heaterState"] = heaterState;
+  doc["heater"] = heaterState;
   //doc["ram"] = ESP.getFreeHeap();
   serializeJson(doc, sensorjson);
 }
@@ -161,6 +155,7 @@ void initNonVolitileMem(){
   automaticDehumidifier = preferences.getBool("autoDehumid", true);
   automaticFanVpd = preferences.getBool("autoVpd", true);
   dehumidifierPrimaryMode = preferences.getBool("primaryHumid", false);
+  dehumidifierForTemp = preferences.getBool("dehumidAutoTemp", false);
   targetVpd = preferences.getFloat("tvpd", 1.0f);
   heaterState = preferences.getBool("headerState", false);
   softMaxFan = preferences.getFloat("softMaxFan", 100.0f);
@@ -267,7 +262,7 @@ void longPWMloop(void *parameter){ // 0-1000
 void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-1000 by multiplying by 10
 
   int powerVal  = fanPower * 10;    // 0-1000
-  float percentVal = powerVal / 1000.0f; //float 0 - 1
+  // float percentVal = powerVal / 1000.0f; //float 0 - 1
 
   if(powerVal>1000){powerVal = 1000;}
   if(powerVal<0){powerVal = 0;}
@@ -275,29 +270,53 @@ void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-100
   if(powerVal == 0){
     ledcWrite(fanPWMchannel, 0);
   }
+  powerVal = map(powerVal, 0, 1000, 0, softMaxPWM);
 
-  if(percentVal < minpercentvalue){
-    Serial.println("long pwm task");
-      ///let the pwm loop task handle the fan
-    xTaskCreate(
-    longPWMloop,      // Function that should be called
-    "longPWM",        // Name of the task (for debugging)
-    1000,             // Stack size (bytes)
-    (void *) powerVal,// Parameter to pass
-    3,                // Task priority
-    &longPWMTaskHandle);       // Task handle 
-    //Serial.print("made new fan task. fan value ");
-    //Serial.println(powerVal);
-  } else {
-    //Serial.println("ramping up fan");
-    powerVal = map(powerVal, 0, 1000, 0, softMaxPWM);
-    //rampUpFan(percentVal * 100.0f);
-    ledcWrite(fanPWMchannel, powerVal);
-  }
+
+  // if(percentVal < minpercentvalue){
+  //   Serial.println("long pwm task");
+  //     ///let the pwm loop task handle the fan
+  //   xTaskCreate(
+  //   longPWMloop,      // Function that should be called
+  //   "longPWM",        // Name of the task (for debugging)
+  //   1000,             // Stack size (bytes)
+  //   (void *) powerVal,// Parameter to pass
+  //   3,                // Task priority
+  //   &longPWMTaskHandle);       // Task handle 
+  //   //Serial.print("made new fan task. fan value ");
+  //   //Serial.println(powerVal);
+  // }
+
+  // Serial.print("Power val");
+  // Serial.println(powerVal);
+
+  int moveSize = 200;
+  float fanDiff = powerVal - lastPowerVal;
+
+  // Serial.print("diff");
+  // Serial.println(fanDiff);
+
+  if(fanDiff > moveSize){
+    Serial.println("ramping up fan");
+    Serial.print(fanDiff/moveSize);
+    Serial.println(" steps");
+
+    for(int i=1; i<(fanDiff/moveSize);i++){ //increase fan power in increments of moveSize
+      int val = i*moveSize;
+      Serial.print("fan ramp up ");
+      Serial.println(val);
+
+      ledcWrite(fanPWMchannel, map(val, 0, 1000, 0, softMaxPWM));
+      vTaskDelay(300);
+    }
+  } 
+
+  ledcWrite(fanPWMchannel, map(powerVal, 0, 1000, 0, softMaxPWM));
 
   preferences.putFloat("fanPower", fanPower);
   saveToNVM();
   Serial.println("fan updated");
+  lastPowerVal = powerVal;
   //esp_task_wdt_reset();
 }
 
@@ -410,13 +429,26 @@ void operateDehumidifierOnBounds(){   //if humidity too high turn on the dehumid
 }
 
 void operateDehumidifierOnFanUsage(){
-  // TODO this should probs be half of fan soft max
-  if (fanPower >= softMaxFan / 2.0f){ // 50% of max fan allowed 
-    setDehumidiferState(true);
+  if(!dehumidiferState){
+    if (fanPower >= softMaxFan * 0.9f){ // 90% of max fan allowed 
+      setDehumidiferState(true);
+    }
+  } else {
+    if (fanPower <= softMaxFan * 0.7f){ // 50% of max fan allowed 
+        setDehumidiferState(false);
+    }
   }
-  if (fanPower <= softMaxFan / 3.0f){ // 33.3% of max fan allowed 
-    setDehumidiferState(false);
-  }
+}
+
+void operateDehumidifierOnTempBounds(){
+ if(temp>=(float)-1){
+    if(temp <= 24){
+      setDehumidiferState(true);
+    }
+    if(temp >= 26){
+      setDehumidiferState(false);
+    }
+ }
 }
 
 float calcDfan(){
@@ -424,22 +456,23 @@ float calcDfan(){
   // for(int i=0; i<BUFFER_SIZE; i++){
   //   Serial.println(buffer.data[i]);
   // }
+  int lookback_length = 7;    //good for fast oscillations 
 
-  int tenindex = humidityBuffer.newest_index-PIDLookback;
+  int lookback_index = humidityBuffer.newest_index-lookback_length;
   int cindex = humidityBuffer.newest_index-1;
-  if(tenindex < 0){
-    tenindex = BUFFER_SIZE + tenindex;
+  if(lookback_index < 0){
+    lookback_index = BUFFER_SIZE + lookback_index;
   }
   if(cindex < 0){
     cindex = BUFFER_SIZE + cindex;
   }
-  float old = humidityBuffer.data[tenindex];
+  float old = humidityBuffer.data[lookback_index];
   float current = humidityBuffer.data[cindex];
   if(old ==-1.0f || old == 0.0f || current ==-1.0f || current== 0.0f){
     return 0;
   }
 
-  float diff = ( current - old) / PIDLookback;
+  float diff = ( current - old) / lookback_length;
   
   float Dfan = D * diff; 
 
@@ -454,13 +487,16 @@ float calcDfan(){
 
 float calcIfan(){
   float sum = 0;
-  for(int i=1; i<PIDLookback; i++){
+  int lookback = 18;
+
+  for(int i=1; i<lookback; i++){
     int cindex = errorBuffer.newest_index-i;
     if(cindex < 0){
       cindex = BUFFER_SIZE + cindex;
     }
     
     float c = errorBuffer.data[cindex];
+
     sum+=c;
   }
 
@@ -474,6 +510,7 @@ float calcIfan(){
 
   return Ifan; 
 }
+
 
 void fanPID(){
       float humidityError = humidity - targetHumidity;
@@ -499,8 +536,7 @@ void fanPID(){
       if(newfan > softMaxFan){ newfan = softMaxFan;}
       if(newfan <=0){newfan = 0.1f;}
       if(newfan >=100){newfan = 100;}
-      if(abs(newfan - fanPower) >= 0.0f){
-       
+      if(abs(newfan - fanPower) > 0.0f){
         Serial.print("new fan power ");
         Serial.println(newfan);
         fanPower=newfan;
@@ -508,21 +544,78 @@ void fanPID(){
       }
 }
 
+void ventOnHighTemp(){  //safety feature 👍
+  if(temp!=-1){
+    if(temp > ventTemp){
+      Serial.print("Venting due to high temp! (Over ");
+      Serial.print(ventTemp);
+      Serial.println(" degrees)");
+      fanPower=100;
+      fanChanged=true;
+    }
+  }
+}
+
+void operateHeaterOnBounds(){
+  if(temp!=-1){
+    if(temp>= targetTemperature +1){
+      setHeaterState(false);
+    }
+    else if(temp<= targetTemperature -1 ){
+      setHeaterState(true);
+    }
+  }
+}
+
+
 void checkSensors(){
-  float num = 0;
-  int dupecount =0;
-  for(int i=1; i<5; i++){
-  int index = humidityBuffer.newest_index-i;
-  if(index < 0){
-      index = BUFFER_SIZE - index;
-  }
-  float c  = humidityBuffer.data[index];
-  if(c == num){
-      dupecount++;
-  }
-  num = c;
+  #ifdef SCD4
+    if(!SCD40Mounted){
+      bool ok = initSensors();
+      if(!ok){
+        sensorMountFailCount +=1;
+      } else {
+        sensorMountFailCount = 0;
+      }
+      return;
+    }
+  #endif
+
+  #ifdef BME
+    if(!bmeMounted){
+      bool ok = initSensors();
+      if(!ok){
+        sensorMountFailCount +=1;
+      } else {
+        sensorMountFailCount = 0;
+      }
+      return;
+    }
+  #endif
+
+
+  if(sensorMountFailCount >= 8){
+    Serial.println("Failed to connect sensors >4 times in a row. SAFETY MODE");
+    temp = -1;
+    humidity = -1;
+    fanPower = 30;
+    fanChanged = true;
   }
 
+
+  float num = 0;
+  int dupecount = 0;
+  for(int i=1; i<5; i++){
+    int index = humidityBuffer.newest_index-i;
+    if(index < 0){
+        index = BUFFER_SIZE - index;
+    }
+    float c  = humidityBuffer.data[index];
+    if(c == num){
+        dupecount++;
+    }
+    num = c;
+  }
 
   if(dupecount > 2){
     Serial.println("reinit sensors");
@@ -530,17 +623,75 @@ void checkSensors(){
   }
 }
 
+void send_water_added(time_t now){
+
+  float total_time = now - pumpStart;
+  Serial.print("total run time ");
+  Serial.println(total_time);
+
+  char data[32];
+  snprintf_P(data, sizeof(data), PSTR("{\"pump_time_active\":%f}"), total_time);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+}
+
+void checkPump(){
+  if(pumpEnd == 0){
+    pumpState = false;
+    digitalWrite(pumpControlPin, LOW);
+    return;
+  }
+
+  time_t now;
+  time(&now);
+
+  // if(waterSensor1State >0){
+  //   pumpEnd = 0;
+
+  //   pumpState = false;
+  //   digitalWrite(pumpControlPin, LOW);
+  //   Serial.print("stopping pump early ");
+  //   send_water_added(now);
+  //   return;
+  // }
+
+  
+  // Serial.print("check epoch pump");
+  // Serial.println(now);
+  // Serial.print("pumpEnd time");
+  // Serial.println(pumpEnd);
+  if(now >= pumpEnd){
+    pumpEnd = 0;
+    pumpState = false;
+    digitalWrite(pumpControlPin, LOW);
+    Serial.println("Pump timer ended");
+
+    send_water_added(now);
+    pumpStart = 0;
+  }
+}
+
+
+
+void updateWaterSensors(){
+  waterSensor1State = analogRead(waterSensor1Pin);
+  waterSensor2State = analogRead(waterSensor2Pin);
+  Serial.println("");
+  Serial.print("wtr snsr 1: ");
+  Serial.print(waterSensor1State);
+  Serial.print("   wtr snsr 2: ");
+  Serial.println(waterSensor2State);
+}
+
 
 void mainloop(void * parameter){
-  vTaskDelay(1000);
-  int sensorTime = 5; //num of loop interations between sensor reading/PID. Every x loops
+  vTaskDelay(1000);   //yield some time to other threads
+  int sensorTime = 10; //num of loop interations between sensor reading/PID. Every x loops
   #ifdef BME
-    sensorTime = 1;
-    sensorInterval = 1000;
+    sensorTime = 5; //BME lets u sample every 5 seconds!
   #endif
 
   while(true){
-    // 0 is for the transpiration test so fan power can change when Hvac is locked and power is 0
+    // 0 here is for the transpiration test so fan power can change when Hvac is locked and power is 0 (at the end of the test)
     if(fanChanged && (!lockHVAC || fanPower == 0)){         
       updateFanPower();  //cool trick to recreate fan task at a good time (where it wont crash)
       fanChanged=false;
@@ -551,30 +702,69 @@ void mainloop(void * parameter){
       restoreDehumid = false;
     }
 
-    if(lockHVAC && dehumidiferState){   //turn off dehumidifer when HVAC is locked (not perfect as this is now a sideffect of the var)
+    if(lockHVAC && dehumidiferState){   //turn off dehumidifer when HVAC is locked (this is now a sideffect of the variable state!)
       setDehumidiferState(false);
       restoreDehumid = true;
     }
-   
+
+
+    if(loopCounter%3 == 0){
+      updateWaterSensors();
+      checkPump();
+    }
     
     if(loopCounter%sensorTime == 0){
       checkSensors();
-      getSensorReadings();
-      if(!lockHVAC){
-        if(automaticFanVpd){
-          fanPID();
+      bool successful_read = getSensorReadings();
+      operateHeaterOnBounds();  //Should put this under "auto" switch
+
+      if(successful_read){
+        sensorReadFailCount = 0;
+        targetHumidity = calcTargetHumidityForVpd(targetVpd, temp);
+        Serial.print("±RH ");
+        upperHumidityBound = targetHumidity + 0.5f;
+        lowerHumidityBound = targetHumidity - 0.5f;
+
+        if(!lockHVAC){
+          if(automaticFanVpd){
+            fanPID();
+            ventOnHighTemp();
+          }
+          if(automaticDehumidifier){
+            if(dehumidifierPrimaryMode){
+                operateDehumidifierOnBounds();
+            } else {
+              // secondary mode
+              if(dehumidifierForTemp) {
+                operateDehumidifierOnTempBounds();
+              } else {
+                operateDehumidifierOnFanUsage();
+              }
+            }
+          }
         }
-        if(automaticDehumidifier){
-          if(dehumidifierPrimaryMode){
-            operateDehumidifierOnBounds();
-          } else {
-            operateDehumidifierOnFanUsage();
+      } else {
+        sensorReadFailCount +=1;
+        if(sensorReadFailCount >4){
+          Serial.println("Sensor read failed >4 times in a row :/");
+          if(!initSensors()){
+            Serial.println("Reinit failed :/ Restarting esp");
+            ///setting reasonable fan value
+            preferences.putFloat("fanPower", 40);
+            saveToNVM();
+            ESP.restart();
           }
         }
       }
     }
 
-    if(loopCounter%10 == 0){
+    if(loopCounter%10 == 0){  //Publish data
+      if(WiFi.status() == WL_CONNECTED && mqttclient.connected()){
+        mqttPublishSensorData();
+      }
+    }
+
+    if(loopCounter%20 == 0){
       Serial.print("checking wifi ..");
       if(WiFi.status() != WL_CONNECTED){
         bool success = WiFi.reconnect();
@@ -582,24 +772,11 @@ void mainloop(void * parameter){
           Serial.println("connected");
         }
         Serial.println("failed");
-        ESP.restart();
+        // ESP.restart();
       }
     }
 
-    if(loopCounter%5 == 0){    //every sensorInterval * num seconds i%num (10 secs)
-  
-      targetHumidity = calcTargetHumidityForVpd(targetVpd, temp);
-      Serial.print("±RH ");
-      upperHumidityBound = targetHumidity + 0.5f;
-      lowerHumidityBound = targetHumidity - 0.5f;
-  
-      
-      if(WiFi.status() == WL_CONNECTED && mqttclient.connected()){
-        mqttPublishSensorData();
-      }
-
-    }
-    if(loopCounter %30 == 0){
+    if(loopCounter %60 == 0){
       tm time = refreshNetworkTime();
       Serial.println("");
       Serial.print(time.tm_hour);
@@ -608,8 +785,7 @@ void mainloop(void * parameter){
       Serial.println("");
     }
 
-    
-    vTaskDelay(sensorInterval);
+    vTaskDelay(1000);
     loopCounter++;    //changing this value resets the freezewatchdog
     if(loopCounter > 100){
       loopCounter = 0;
@@ -647,44 +823,6 @@ void mqttLoop(void * parameter){ //Keeps the mqtt client connected and receives/
 
 
 void setup() {
-
-  ////REMOVE
-  // Serial.begin(115200);
-  // while (!Serial) { delay(300); } // Wait for serial console to open!
-
-  // ledcSetup(fanPWMchannel, freq, resolution);
-  // ledcAttachPin(fanControlPin, fanPWMchannel);
-
-  // Serial.println("max pwm val");
-  // Serial.println(softMaxPWM);
-
-  // float minPowerPercentage = minpercentvalue * softMaxPWM;
-  // Serial.println("min pwm val");
-  // Serial.println(minPowerPercentage);
-
-  // while(true){
-  //   rampUpFan(100);
-    
-  //   delay(600);
-
-  //   ledcWrite(fanPWMchannel, 0);
-
-  //   delay(4000);
-
-  //   rampUpFan(40);
-
-  //   // // Decelerate from maximum speed to zero
-  //   // for (int i = softMaxPWM; i >= minPowerPercentage; --i) {
-  //   //   float power = map(i, 0, softMaxPWM, 0, 100);
-  //   //   ledcWrite(fanPWMchannel, i);
-  //   //   Serial.println(power);
-  //   //   delay(10);
-  //   // }
-  //   delay(5000);
-  // }
-  /////////REMOVE//////
-
-
   //WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector 
   Serial.begin(115200);
   while (!Serial) { delay(300); } // Wait for serial console to open!
@@ -699,22 +837,26 @@ void setup() {
     startLedanimation(rbgloop);
   }
 
-  ledcSetup(fanPWMchannel, freq, resolution);
-  ledcAttachPin(fanControlPin, fanPWMchannel);
-
-  pinMode(heaterControlPin, OUTPUT);
-  digitalWrite(heaterControlPin, LOW); 
-  pinMode(stirrerControlPin, OUTPUT);
-  digitalWrite(stirrerControlPin, LOW); 
-  
-  //sensors
-  initSensors();
-  delay(1000);
-
   //get NVM
   initNonVolitileMem();
   Serial.println("");
   delay(200);
+
+  //Pin set up
+  ledcSetup(fanPWMchannel, freq, resolution);
+  ledcAttachPin(fanControlPin, fanPWMchannel);
+  pinMode(pumpControlPin, OUTPUT);
+  digitalWrite(pumpControlPin, LOW); 
+  pinMode(heaterControlPin, OUTPUT);
+  digitalWrite(heaterControlPin, LOW); 
+  //water sensors
+  pinMode(waterSensor1Pin, INPUT);
+  pinMode(waterSensor2Pin, INPUT_PULLUP);
+  heaterState = false;                  //safety 👍
+  
+  //sensors
+  initSensors();
+  delay(1000);
 
   //Connect wifi
   Serial.println("starting WIFI..");

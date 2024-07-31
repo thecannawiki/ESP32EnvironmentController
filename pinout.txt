@@ -1,0 +1,50 @@
+
+## PINOUT
+
+int dehumidifierControlPin = 13;
+int fanControlPin = 12;
+int pump = 33;
+int waterSensor1 = 26;
+int waterSensor2 = 27;
+int neopixelPin = 19;
+
+I2C 
+    CLK 22  (purple)
+    DATA 21 (orange)
+
+
+
+                 -----------------------
+                |                       | 
+                |                       |
+                |                       |
+                |     esp wroom 32      |
+                |                       |
+                |                       |
+                |                       |
+                |                       |
+                |                       |
+                |                       |
+                |                       |
+                |                       |
+                |                       |
+                |                       |
+                |                       |
+                 ----------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

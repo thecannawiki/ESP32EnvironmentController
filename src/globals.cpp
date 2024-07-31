@@ -38,30 +38,40 @@
 bool dehumidiferState = false;
 bool automaticDehumidifier = true;
 bool automaticFanVpd = true;
-bool dehumidifierPrimaryMode = false; // Primary mode means dehumidifier/humidifier will operate on bounds around target humidity, Secondary controls based on fan power usage
+bool dehumidifierPrimaryMode = false; // Primary mode means dehumidifier/humidifier will operate on bounds around target humidity. When false (secondary mode) it will control based on fan power usage
+bool dehumidifierForTemp = false; // The dehumidifier  will operate on bounds around target temperature. This takes precedence over dehumidifier secondary mode when enabled
 bool heaterState = false;
-float fanPower = 30;        //float to 1dp between 0 and 100
+bool pumpState = false;
+float fanPower = 30.0f;        //float to 1dp between 0 and 100
+float lastPowerVal = 0;        //for fan ramp up control
 float minpercentvalue = 0.0f; //min power percentage required to make fan spin e.g 0.25 for 25%
 float softMaxFan = 100.0f; //soft limit on fan percentage
 bool lockHVAC = false;
+unsigned long pumpEnd = 0;
+unsigned long pumpStart = 0;
+int waterSensor1State = 0;
+int waterSensor2State = 0;
 
 //pinout
 int dehumidifierControlPin = 13;
 int fanControlPin = 12;
-int heaterControlPin = 33;
-int stirrerControlPin = 26;
+int pumpControlPin = 33;
+int waterSensor1Pin= 34;
+int waterSensor2Pin= 35;
+int heaterControlPin = 26;
 int neopixelPin = 19;
 
 //environ vals
 float temp = -1;
 float humidity = -1;
 float targetHumidity = 60;  //Sensible default
+float targetTemperature = 25;
+float ventTemp = 33;
 uint16_t co2 = -1;
 float tvoc = 0;
 float upperHumidityBound = 60.0f;
 float lowerHumidityBound = 40.0f;
 float targetVpd = 1.0f;
-int sensorInterval = 2000;
 char sensorjson[240];   //There is a max size u can send to MQTT broker
 
 
@@ -82,10 +92,10 @@ char msg[50];
 int value = 0;
 
 // setting PWM properties
-int freq = 50;
+int freq = 200000;
 int fanPWMchannel = 0;
-int resolution = 12;
-int maxPWMval = 4095;
+int resolution = 10;
+int maxPWMval = 1023;
 bool fanChanged = false;
 float softMaxPWM = (MAXFANCONTROLLEROUTPUT / 100.0) * maxPWMval;
 

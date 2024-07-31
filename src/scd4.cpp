@@ -3,7 +3,7 @@
 
 #ifdef SCD4
 
-    void initSensors(){
+    bool initSensors(){
         scd4x.begin(Wire);
         uint16_t error = scd4x.stopPeriodicMeasurement();
         if(error){
@@ -19,10 +19,12 @@
             Serial.println("SCD-40 connected");
             SCD40Mounted = true;
         }
+        return SCD40Mounted;
     }
 
 
-    void getSensorReadings(){   //This can be done every 5 seconds
+    bool getSensorReadings(){   //This can be done every 5 seconds
+        bool success = false;
         if(SCD40Mounted){
             uint16_t error = scd4x.readMeasurement(co2, temp, humidity);
             // Serial.println(co2);
@@ -33,12 +35,16 @@
                 char errorMessage[256];
                 errorToString(error, errorMessage, 256);
                 Serial.println(errorMessage);
+                success = false;
             } else {
                 Serial.print("R ");
                 Serial.print(humidity, 4);
+                success = true;
             }
-            humidityBufferWrite(humidity);
+            humidityBufferWrite(humidity);  // write val to buffer whether it is new or not
+            return success;
         }
+        return false;
     }
 
 #endif

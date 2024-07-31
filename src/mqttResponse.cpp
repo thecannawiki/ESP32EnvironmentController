@@ -8,6 +8,15 @@
 #include <peripherals.h>
 std::unordered_map<std::string, std::function<void(const String&)>> functionDict;
 
+const bool onOffToBool(const String& message){
+  if(message == "on"){
+      return true;
+  } else if(message == "off"){
+    return false;
+  }
+  // oop idk what to do here ??
+  return false;
+}
 
 // Function definitions (1/4)
 const void handleFan(const String& message) {
@@ -36,6 +45,35 @@ const void handleFan(const String& message) {
     }
 }
 
+const void handlePumpTimer(const String& message) {
+  int num = message.toInt();
+  if(num>35 *60){ 
+    Serial.println("pump time too long");
+    return;
+  }
+  if(num<0){return;}
+
+  if(pumpEnd !=0){
+    Serial.println("pump timer already set");
+    return;
+  }
+
+  time_t now;
+  time(&now);
+  Serial.print("epoch now: ");
+  Serial.println(now);
+
+  
+  pumpState = true;
+  digitalWrite(pumpControlPin, HIGH);
+  pumpEnd = now + num;
+  pumpStart = now;
+  Serial.println("Pump timer started");
+  Serial.print("end time: ");
+  Serial.println(pumpEnd);
+}
+
+
 const void handleSoftMaxFan(const String& message){
   float num = message.toFloat();
   if(num>100){ num = 100;}
@@ -56,6 +94,16 @@ const void handleSoftMaxFan(const String& message){
 }
 
 const void handleTranspirationMeasurement(const String& message){
+
+
+  // TODO this should take place on another thread if possible. It blocks mqtt handling
+  //xTaskCreate(
+  //   longPWMloop,      // Function that should be called
+  //   "longPWM",        // Name of the task (for debugging)
+  //   1000,             // Stack size (bytes)
+  //   (void *) powerVal,// Parameter to pass
+  //   3,                // Task priority
+  //   &longPWMTaskHandle);       // Task handle 
   int time = message.toInt();
   if(time<1){
     mqttclient.publish(MQTTPUBLISHTOPIC, "time too short");
@@ -197,29 +245,48 @@ const void handleupperbound(const String& message){
 const void handlesetHeater(const String& message){
     if(message == "on"){
       heaterState = true;
-      digitalWrite(heaterControlPin, HIGH); 
+      digitalWrite(pumpControlPin, HIGH); 
     }
     else if(message == "off"){
       heaterState = false;
-      digitalWrite(heaterControlPin, LOW); 
+      digitalWrite(pumpControlPin, LOW); 
     }
     preferences.putBool("headerState", heaterState);
     saveToNVM();
     char data[50];
     snprintf_P(data, sizeof(data), PSTR("{\"heaterState\":%d}"), heaterState);
     mqttclient.publish(MQTTPUBLISHTOPIC, data);
-    //mqttPublishSensorData();
+}
+
+const void handleSetDehumidifierForTemp(const String& message){
+  if(onOffToBool(message)){
+    dehumidifierForTemp = true;
+    dehumidifierPrimaryMode = false;
+  } else {
+    dehumidifierForTemp = false;
   }
+
+  preferences.putBool("primaryHumid", dehumidifierPrimaryMode);
+  preferences.putBool("dehumidAutoTemp", dehumidifierForTemp);
+  saveToNVM();
+  char data[50];
+  snprintf_P(data, sizeof(data), PSTR("{\"dehumidAutoTemp\":%d, \"primaryHumid\":%d}"), heaterState,dehumidifierPrimaryMode );
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+
+
+}
 
 /////
 
 /////// define function key (2/4)
 const std::string fanPowerTopicName = (MQTTCONTROLTOPIC + std::string{"/exhaust"}).data();
+const std::string setHeaterTopicName = (MQTTCONTROLTOPIC + std::string{"/heater"}).data();
 const std::string fanSoftMax = (MQTTCONTROLTOPIC + std::string{"/exhaust/softMax"}).data();
 const std::string transpirationMeasurement = (MQTTCONTROLTOPIC + std::string{"/transTest"}).data();
 const std::string dehumidiferToggle = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/toggle"}).data();
 const std::string dehumidiferAuto = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/auto"}).data();
 const std::string dehumidiferPrimary = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/primary"}).data();
+const std::string dehumidiferForTempEndpoint = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/autoTemp"}).data();
 const std::string fanAutoVpd = (MQTTCONTROLTOPIC + std::string{"/exhaust/autoVpd"}).data();
 const std::string dehumidiferLower = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/lower"}).data();
 const std::string dehumidiferUpper = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/upper"}).data();
@@ -227,6 +294,7 @@ const std::string setTargetVpd = (MQTTCONTROLTOPIC + std::string{"/targetVpd"}).
 const std::string setP = (MQTTCONTROLTOPIC + std::string{"/P"}).data();
 const std::string setI = (MQTTCONTROLTOPIC + std::string{"/I"}).data();
 const std::string setD = (MQTTCONTROLTOPIC + std::string{"/D"}).data();
+const std::string pumpTimerTopicName = (MQTTCONTROLTOPIC + std::string{"/pump"}).data();
 //////////
 
 
@@ -237,6 +305,7 @@ void mqttSubscribeTopics(){
   mqttclient.subscribe(fanAutoVpd.data());
   mqttclient.subscribe(fanSoftMax.data());
   mqttclient.subscribe(dehumidiferPrimary.data());
+  mqttclient.subscribe(dehumidiferForTempEndpoint.data());
   mqttclient.subscribe(dehumidiferLower.data());
   mqttclient.subscribe(dehumidiferUpper.data());
   mqttclient.subscribe(dehumidiferToggle.data());
@@ -246,11 +315,13 @@ void mqttSubscribeTopics(){
   mqttclient.subscribe(setP.data());
   mqttclient.subscribe(setI.data());
   mqttclient.subscribe(setD.data());
+  mqttclient.subscribe(setHeaterTopicName.data());
+  mqttclient.subscribe(pumpTimerTopicName.data());
 }
 
 
 void mqttHandle(char* topic, String message) {
-    ////Add to map here (4/4)
+    ////Add to map here (4/4) #TODO maybe this can be defined at compile time?
     functionDict[fanPowerTopicName] = handleFan;
     functionDict[transpirationMeasurement] = handleTranspirationMeasurement;
     functionDict[dehumidiferAuto] = handleSetDehumidifierAuto;
@@ -264,6 +335,9 @@ void mqttHandle(char* topic, String message) {
     functionDict[setP] = handleSetP;
     functionDict[setI] = handleSetI;
     functionDict[setD] = handleSetD;
+    functionDict[dehumidiferForTempEndpoint] = handleSetDehumidifierForTemp;
+    functionDict[setHeaterTopicName] = handlesetHeater;
+    functionDict[pumpTimerTopicName] = handlePumpTimer;
     
     // Call the corresponding function based on the input
     std::string topicName = topic;

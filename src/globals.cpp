@@ -15,6 +15,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
+#include <buffer.h>
 
 
 #ifdef SCD4
@@ -41,6 +42,7 @@ bool automaticFanVpd = true;
 bool dehumidifierPrimaryMode = false; // Primary mode means dehumidifier/humidifier will operate on bounds around target humidity. When false (secondary mode) it will control based on fan power usage
 bool dehumidifierForTemp = false; // The dehumidifier  will operate on bounds around target temperature. This takes precedence over dehumidifier secondary mode when enabled
 bool heaterState = false;
+bool autoHeater = false;
 bool pumpState = false;
 float fanPower = 30.0f;        //float to 1dp between 0 and 100
 float lastPowerVal = 0;        //for fan ramp up control
@@ -49,6 +51,8 @@ float softMaxFan = 100.0f; //soft limit on fan percentage
 bool lockHVAC = false;
 unsigned long pumpEnd = 0;
 unsigned long pumpStart = 0;
+unsigned long heaterStart = 0;
+unsigned long heaterEnd = 0;
 int waterSensor1State = 0;
 int waterSensor2State = 0;
 
@@ -57,7 +61,7 @@ int dehumidifierControlPin = 13;
 int fanControlPin = 12;
 int pumpControlPin = 33;
 int waterSensor1Pin= 34;
-int waterSensor2Pin= 35;
+int waterSensor2Pin= 4;
 int heaterControlPin = 26;
 int neopixelPin = 19;
 
@@ -73,6 +77,12 @@ float upperHumidityBound = 60.0f;
 float lowerHumidityBound = 40.0f;
 float targetVpd = 1.0f;
 char sensorjson[240];   //There is a max size u can send to MQTT broker
+int maxWaterSensorVal = 1800;
+
+Buffer humidityBuffer;
+Buffer tempBuffer;
+Buffer errorBuffer;
+Buffer w1Buffer;
 
 
 //PID
@@ -85,6 +95,8 @@ float D = 0.1;
 const char* ntpServer = "pool.ntp.org";
 long gmtOffset_sec = 0;
 int daylightOffset_sec = 3600;
+struct tm timeinfo;
+time_t timeNow;
 
 //mqtt
 long lastMsg = 0;

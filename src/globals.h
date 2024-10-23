@@ -16,6 +16,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
+#include "buffer.h"
 
 #ifdef SCD4
     #include <SensirionI2CScd4x.h>
@@ -35,12 +36,15 @@
 //global vals
 //hardware
 
+enum Sensor {BM280_SGP30, SCD4};
+
 extern bool dehumidiferState;
 extern bool automaticDehumidifier;
 extern bool automaticFanVpd;
 extern bool dehumidifierPrimaryMode;
 extern bool dehumidifierForTemp;
 extern bool heaterState;
+extern bool autoHeater;
 extern int waterSensor1State;
 extern int waterSensor2State;
 extern bool pumpState;
@@ -58,6 +62,8 @@ extern int heaterControlPin;
 extern int stirrerControlPin;
 extern unsigned long pumpEnd;
 extern unsigned long pumpStart;
+extern unsigned long heaterStart;
+extern unsigned long heaterEnd;
 extern int neopixelPin;
 extern int waterSensor1Pin;
 extern int waterSensor2Pin;
@@ -74,6 +80,12 @@ extern float upperHumidityBound;
 extern float lowerHumidityBound;
 extern float targetVpd;
 extern char sensorjson[240];   //There is a max size u can send to MQTT broker
+extern int maxWaterSensorVal;
+
+extern Buffer humidityBuffer;
+extern Buffer tempBuffer;
+extern Buffer errorBuffer;
+extern Buffer w1Buffer;
 
 
 //PID
@@ -85,6 +97,8 @@ extern float D;
 extern const char* ntpServer;
 extern long  gmtOffset_sec;
 extern int   daylightOffset_sec;
+extern struct tm timeinfo;
+extern time_t timeNow;
 
 //mqtt
 extern long lastMsg;

@@ -46,9 +46,9 @@
         if(!bmeMounted && !sgpMounted){return false;}
         
         if(bmeMounted){
-            humidity = bme280.readFloatHumidity();
-            temp = bme280.readTempC();
-            if(temp <0){
+            float h = bme280.readFloatHumidity();
+            float t = bme280.readTempC();
+            if(t <0){
                 temp = -1;
                 humidity = -1;
                 bmeMounted = false;
@@ -56,8 +56,23 @@
             } else {
                 Serial.print("* ");
                 success = true;
+
+                //BME requires a filter to prevent crazy spikes
+                // float last_humidity = humidity;
+                // humidity = (last_humidity + h) / 2;
+
+                humidityBuffer.write(h);
+                tempBuffer.write(t);
+
+                Serial.println("hu");
+                humidityBuffer.printData();
+
+                Serial.println("temp");
+                tempBuffer.printData();
+                humidity = humidityBuffer.avgOfLastN(3);
+                temp = humidityBuffer.avgOfLastN(3);
+
             }
-            humidityBufferWrite(humidity);
         }
 
         if(sgpMounted){

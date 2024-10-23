@@ -26,7 +26,6 @@ void setDehumidiferState(bool state){
 
 
 void setHeaterState(bool state){
-
   if(state){
     digitalWrite(heaterControlPin, HIGH);  
     Serial.println("turning heater ON");
@@ -37,4 +36,10 @@ void setHeaterState(bool state){
 
   heaterState = state;
   preferences.putBool("headerState", heaterState);
+}
+
+void startHeater(){
+  setHeaterState(true);
+  time(&timeNow);
+  heaterEnd = timeNow + 10*60;
 }

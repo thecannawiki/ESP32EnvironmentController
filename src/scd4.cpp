@@ -1,6 +1,8 @@
 #include <globals.h>
 #include <buffer.h>
 
+int sensorDupCount = 0;
+
 #ifdef SCD4
 
     bool initSensors(){
@@ -26,23 +28,48 @@
     bool getSensorReadings(){   //This can be done every 5 seconds
         bool success = false;
         if(SCD40Mounted){
-            uint16_t error = scd4x.readMeasurement(co2, temp, humidity);
+            float hu = 0.0f;
+            float t = 0.0f;
+            uint16_t error = scd4x.readMeasurement(co2, t, hu);
             // Serial.println(co2);
             // Serial.println(temp);
             // Serial.println(humidity);
-            if(error || co2 == -1 || temp == -1 || humidity == -1){
+            if(error || co2 == -1 || t == -1 || hu == -1){
                 Serial.print("Error reading sensor values from SC40 ::");
                 char errorMessage[256];
                 errorToString(error, errorMessage, 256);
                 Serial.println(errorMessage);
-                success = false;
+                
+                Serial.println("hu fail val");
+                int prevIndex =  (humidityBuffer.newest_index - 1 + BUFFER_SIZE) % BUFFER_SIZE;
+                float hufailval = humidityBuffer.data[prevIndex];
+                Serial.println(hufailval);
+                humidityBuffer.write(hufailval);
+
+                Serial.println("temp fail val");
+                prevIndex =  (tempBuffer.newest_index - 1 + BUFFER_SIZE) % BUFFER_SIZE;
+                float tempfailval = tempBuffer.data[prevIndex];
+                Serial.println(tempfailval);
+
+                tempBuffer.write(tempfailval);
+
             } else {
+                success = true;
+                humidityBuffer.write(hu);  
+                tempBuffer.write(t);
+            }
+            
+            
+            humidityBuffer.printData();
+
+            humidity = humidityBuffer.avgOfLastN(2);
+            temp = tempBuffer.avgOfLastN(2);
+
+            if(success){
                 Serial.print("R ");
                 Serial.print(humidity, 4);
-                success = true;
+                return true;
             }
-            humidityBufferWrite(humidity);  // write val to buffer whether it is new or not
-            return success;
         }
         return false;
     }

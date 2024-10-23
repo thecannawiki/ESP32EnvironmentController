@@ -47,7 +47,7 @@ const void handleFan(const String& message) {
 
 const void handlePumpTimer(const String& message) {
   int num = message.toInt();
-  if(num>35 *60){ 
+  if(num>35 *60){     //35 mins
     Serial.println("pump time too long");
     return;
   }
@@ -58,16 +58,21 @@ const void handlePumpTimer(const String& message) {
     return;
   }
 
-  time_t now;
-  time(&now);
+  if(waterSensor1State < 4095 && waterSensor1State > maxWaterSensorVal){
+    Serial.println("Water sensor 1 detects water! pump disabled");
+    return;
+  }
+
+
+  time(&timeNow);
   Serial.print("epoch now: ");
-  Serial.println(now);
+  Serial.println(timeNow);
 
   
   pumpState = true;
   digitalWrite(pumpControlPin, HIGH);
-  pumpEnd = now + num;
-  pumpStart = now;
+  pumpEnd = timeNow + num;
+  pumpStart = timeNow;
   Serial.println("Pump timer started");
   Serial.print("end time: ");
   Serial.println(pumpEnd);
@@ -94,7 +99,6 @@ const void handleSoftMaxFan(const String& message){
 }
 
 const void handleTranspirationMeasurement(const String& message){
-
 
   // TODO this should take place on another thread if possible. It blocks mqtt handling
   //xTaskCreate(
@@ -144,11 +148,11 @@ const void toggleDehumidifier(const String& message){
 
 const void handleTargetVpd(const String& message){
   float num = message.toFloat();
-    if(num <= 2.0f && num >=0.4f){
-      targetVpd = num;
-      preferences.putFloat("tvpd", targetVpd);
-      saveToNVM();
-    }
+  if(num <= 2.0f && num >=0.4f){
+    targetVpd = num;
+    preferences.putFloat("tvpd", targetVpd);
+    saveToNVM();
+  }
 }
 
 const void handleSetP(const String& message){
@@ -244,17 +248,24 @@ const void handleupperbound(const String& message){
 
 const void handlesetHeater(const String& message){
     if(message == "on"){
-      heaterState = true;
-      digitalWrite(pumpControlPin, HIGH); 
+      setHeaterState(true);
     }
     else if(message == "off"){
-      heaterState = false;
-      digitalWrite(pumpControlPin, LOW); 
+      setHeaterState(false); 
     }
+
+    if(message == "auto"){
+      autoHeater = true;
+    } else if(message == "man"){
+      autoHeater = false;
+    }
+
     preferences.putBool("headerState", heaterState);
+    preferences.putBool("autoHeater", autoHeater);
+
     saveToNVM();
     char data[50];
-    snprintf_P(data, sizeof(data), PSTR("{\"heaterState\":%d}"), heaterState);
+    snprintf_P(data, sizeof(data), PSTR("{\"heater\":%d, \"autoHeater\":%d}"), heaterState, autoHeater);
     mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
@@ -270,9 +281,8 @@ const void handleSetDehumidifierForTemp(const String& message){
   preferences.putBool("dehumidAutoTemp", dehumidifierForTemp);
   saveToNVM();
   char data[50];
-  snprintf_P(data, sizeof(data), PSTR("{\"dehumidAutoTemp\":%d, \"primaryHumid\":%d}"), heaterState,dehumidifierPrimaryMode );
+  snprintf_P(data, sizeof(data), PSTR("{\"dehumidAutoTemp\":%d, \"primaryHumid\":%d}"), dehumidifierForTemp, dehumidifierPrimaryMode );
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
-
 
 }
 

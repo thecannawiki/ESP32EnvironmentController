@@ -1,7 +1,7 @@
 # ESP32EnvironmentController
 An environment (Temperature, humidity, Co2) controller for ESP32
 
-![Node-red interface](https://user-images.githubusercontent.com/98982171/190256513-834cee8a-5ba4-4e40-86a7-a8b915711396.png)
+![Node-red interface](https://github.com/user-attachments/assets/01f73acd-4df4-4e7e-9391-60e350c5a6d6)
 
 ## Feature list:
 * Automatic fan and heater control to meet target VPD

@@ -65,11 +65,7 @@ int sensorDupCount = 0;
             humidity = humidityBuffer.avgOfLastN(2);
             temp = tempBuffer.avgOfLastN(2);
 
-            if(success){
-                Serial.print("R ");
-                Serial.print(humidity, 4);
-                return true;
-            }
+            return success;
         }
         return false;
     }

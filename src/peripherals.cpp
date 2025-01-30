@@ -24,7 +24,7 @@ void setDehumidiferState(bool state){
   preferences.putBool("dehumidifier", dehumidiferState);
 }
 
-
+// TODO start a task when heater turns on to monitor the difference (use temp buffer), if it is different to expected kill heater
 void setHeaterState(bool state){
   if(state){
     digitalWrite(heaterControlPin, HIGH);  

@@ -42,6 +42,7 @@ bool automaticFanVpd = true;
 bool dehumidifierPrimaryMode = false; // Primary mode means dehumidifier/humidifier will operate on bounds around target humidity. When false (secondary mode) it will control based on fan power usage
 bool dehumidifierForTemp = false; // The dehumidifier  will operate on bounds around target temperature. This takes precedence over dehumidifier secondary mode when enabled
 bool heaterState = false;
+bool heaterTempMode = false;
 bool autoHeater = false;
 bool pumpState = false;
 float fanPower = 30.0f;        //float to 1dp between 0 and 100
@@ -69,7 +70,7 @@ int neopixelPin = 19;
 float temp = -1;
 float humidity = -1;
 float targetHumidity = 60;  //Sensible default
-float targetTemperature = 25;
+float targetTemperature = 25.0f;
 float ventTemp = 33;
 uint16_t co2 = -1;
 float tvoc = 0;
@@ -77,7 +78,7 @@ float upperHumidityBound = 60.0f;
 float lowerHumidityBound = 40.0f;
 float targetVpd = 1.0f;
 char sensorjson[240];   //There is a max size u can send to MQTT broker
-int maxWaterSensorVal = 1800;
+int w1maxWaterSensorVal = 1800;
 
 Buffer humidityBuffer;
 Buffer tempBuffer;
@@ -117,6 +118,7 @@ AsyncWebServer server(80);
 Adafruit_NeoPixel pixels(1, neopixelPin, NEO_GRB + NEO_KHZ800);
 
 TaskHandle_t longPWMTaskHandle = NULL;
+TaskHandle_t TransTestTaskHandle = NULL;
 TaskHandle_t LedAnimationTaskHandle = NULL;
 TaskHandle_t freezewatchdogTaskHandle = NULL;
 TaskHandle_t mainLoopTaskHandle = NULL;
@@ -128,3 +130,4 @@ Preferences preferences;
 //runtime 
 int loopCounter = 0;
 bool setupReceived = false;
+int transTestTime = 0;

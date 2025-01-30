@@ -14,6 +14,7 @@ void Buffer::printData() const {
         Serial.print(data[i]);
         Serial.print(" ");
     }
+    Serial.println("");
 }
 
 float Buffer::avgOfLastN(int n) const {

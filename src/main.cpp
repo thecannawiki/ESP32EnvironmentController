@@ -37,7 +37,7 @@ bool restoreDehumid = false;
 
 //Functions for debug
 void scanForWifi(){
-  Serial.print("wifi Scan start ... ");
+  Serial.print(F("wifi Scan start ... "));
   int n = WiFi.scanNetworks();
   Serial.print(n);
   Serial.println(" network(s) found");
@@ -118,7 +118,7 @@ void UpdateSensorJson(){
   doc["TVpd"] = trimmedfloat;
   doc["autoFanVpd"] = automaticFanVpd;
   dtostrf(targetHumidity, 5, 2, trimmedfloat);
-  doc["targetHu"] = trimmedfloat;
+  doc["TRH"] = trimmedfloat;        //Target RH (humidity)
   dtostrf(P, 4, 2, trimmedfloat);
   doc["P"] = trimmedfloat;
   dtostrf(I, 4, 2, trimmedfloat);
@@ -128,10 +128,11 @@ void UpdateSensorJson(){
   if(!lockHVAC){
     dtostrf(fanPower, 5, 1, trimmedfloat);
     doc["fan"] = trimmedfloat;
-    doc["dehumidState"] = dehumidiferState;
+    doc["DHU"] = dehumidiferState;    //dehumidifier state
   }
-  doc["autoDehumid"] = automaticDehumidifier;
+  doc["ADHU"] = automaticDehumidifier;  //auto dehumidifer
   doc["w1"] = waterSensor1State;
+  doc["w1T"] = w1maxWaterSensorVal;
 
   // too much data
   //doc["primaryHumid"] = dehumidifierPrimaryMode;
@@ -139,7 +140,7 @@ void UpdateSensorJson(){
   // doc["lowerBound"] = trimmedfloat;
   // dtostrf(upperHumidityBound, 5, 4, trimmedfloat);
   // doc["upperBound"] = trimmedfloat;
-  doc["heater"] = heaterState;
+  doc["H"] = heaterState; //heater
   //doc["ram"] = ESP.getFreeHeap();
   serializeJson(doc, sensorjson);
 }
@@ -148,20 +149,22 @@ void initNonVolitileMem(){
   // TODO default values are duplicated here
   preferences.begin("controller", false); 
   fanPower = preferences.getFloat("fanPower", 0.0f);
-  dehumidiferState = preferences.getBool("dehumidifier", false);
-  autoHeater = preferences.getBool("autoHeater", false);
+  dehumidiferState = preferences.getBool("dehumidifier", dehumidiferState);
+  autoHeater = preferences.getBool("autoHeater", autoHeater);
   lowerHumidityBound = preferences.getFloat("lowerBound", 40.0f);
   upperHumidityBound = preferences.getFloat("upperBound", 60.0f);
   P = preferences.getFloat("P", 0.2f);
   I = preferences.getFloat("I", 0.2f);
   D = preferences.getFloat("D", 10.0f);
-  automaticDehumidifier = preferences.getBool("autoDehumid", true);
-  automaticFanVpd = preferences.getBool("autoVpd", true);
-  dehumidifierPrimaryMode = preferences.getBool("primaryHumid", false);
-  dehumidifierForTemp = preferences.getBool("dehumidAutoTemp", false);
+  automaticDehumidifier = preferences.getBool("autoDehumid", automaticDehumidifier);
+  automaticFanVpd = preferences.getBool("autoVpd", automaticFanVpd);
+  dehumidifierPrimaryMode = preferences.getBool("primaryHumid", dehumidifierPrimaryMode);
+  dehumidifierForTemp = preferences.getBool("dehumidAutoTemp", dehumidifierForTemp);
   targetVpd = preferences.getFloat("tvpd", 1.0f);
+  targetTemperature = preferences.getFloat("ttemp", targetTemperature);
   heaterState = preferences.getBool("headerState", false);
   softMaxFan = preferences.getFloat("softMaxFan", 100.0f);
+  heaterTempMode = preferences.getFloat("HFT", heaterTempMode);
 
   UpdateSensorJson();
   Serial.println("retrieved from NVM: ");
@@ -218,25 +221,6 @@ void setLowerbound(AsyncWebServerRequest *request){
   }
 }
 
-void rampUpFan(int desiredPowerPercentage){ // int 0-100   //ramp fan up from the minimum power required to the desired power
-  Serial.print("ramping up to");
-  Serial.println(desiredPowerPercentage);
-  float minPowerPercentage = minpercentvalue * softMaxPWM;
-  if(desiredPowerPercentage<minpercentvalue){
-    ledcWrite(fanPWMchannel, desiredPowerPercentage);
-    return;
-  }
-
-  float power = map(desiredPowerPercentage, 0, 100, 0, softMaxPWM);
-
-  for (int i = minPowerPercentage; i < power; i++) {
-      //float power = map(i, 0, softMaxPWM, 0, 100);
-      ledcWrite(fanPWMchannel, i);
-      //Serial.println(power);
-      vTaskDelay(5);
-  }
-
-}
 
 
 void longPWMloop(void *parameter){ // 0-1000
@@ -244,7 +228,7 @@ void longPWMloop(void *parameter){ // 0-1000
   power = (int *) parameter;
   int totalwidth = 50;
   int highcount = totalwidth * int(power) / 1000; 
-  int halfPower = (softMaxPWM - 1)/ 2 + 1; //sweet trick to divide and get an int
+  //int halfPower = (softMaxPWM - 1)/ 2 + 1; //sweet trick to divide and get an int
   int count = 0;
   while(true){ 
     if(count < highcount * 2){ //for halfpower change
@@ -333,7 +317,7 @@ void freezeWatchdog(void * parameter){
       Serial.println("Controller is frozen!!");
       ESP.restart();
     } else {
-      Serial.print(" WD ");
+      Serial.print("WD ");
     }
   }
 }
@@ -361,7 +345,7 @@ void reconnectWifi(){
 
 void mqttreconnect() {    //TODO check mqtt stuff is defined
   if(WiFi.status() != WL_CONNECTED){
-    Serial.println("can't reconnect mqtt. No Wifi connection");
+    Serial.println(F("can't reconnect mqtt. No Wifi connection"));
     return;
   }
   int errcount = 0;
@@ -567,15 +551,25 @@ void ventOnHighTemp(){  //safety feature 👍
 } 
 
 void operateHeater(){
+  // Serial.println("operate heater. To turn on..");
+  // Serial.println("current temp < target-0.5 ??");
+  // Serial.print(tempBuffer.avgOfLastN(5));
+  // Serial.print(" < ");
+  // Serial.println(targetTemperature -0.5f);
+
+
   float humidityError = humidity - targetHumidity;  
-  if(temp==-1 || temp >= 28 || humidityError < -2.5f ){ //safety feature 👍
+  if(temp==-1 || tempBuffer.avgOfLastN(3) >= 28.0f //safety feature 👍
+    || (heaterTempMode && tempBuffer.avgOfLastN(3) >= targetTemperature) ||  humidityError < -1.5f ){ //always care if we are push humidity too dry
     setHeaterState(false);
     return;
   } 
 
-  if(humidityError >= 2.5f){
+  if((!heaterTempMode && humidityError >= 2.5f) || (heaterTempMode && tempBuffer.avgOfLastN(5) < targetTemperature)){
     setHeaterState(true);
-    fanPower = 30;
+    if(fanPower > 30){
+      fanPower = 30;
+    }
     fanChanged = true;
   }
 
@@ -676,14 +670,14 @@ void serialLog(const char str[], bool newLine){
 
 }
 
-void send_water_added(time_t now){
+void send_water_added(time_t now, bool early_stop){
 
   float total_time = now - pumpStart;
   Serial.print("total run time ");
   Serial.println(total_time);
 
-  char data[40];
-  snprintf_P(data, sizeof(data), PSTR("{\"pump_time_active\":%f}"), total_time);
+  char data[50];
+  snprintf_P(data, sizeof(data), PSTR("{\"pump_time_active\":%f,\"early_stop\":%d}"), total_time, early_stop);
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
@@ -711,12 +705,12 @@ void checkPump(){
   
   time(&timeNow);
 
-  if(waterSensor1State <4095 && waterSensor1State > maxWaterSensorVal){
+  if(waterSensor1State <4095 && waterSensor1State > w1maxWaterSensorVal){
     pumpEnd = 0;
     pumpState = false;
     digitalWrite(pumpControlPin, LOW);
     Serial.print("Water detected! Stopping pump early ");
-    send_water_added(timeNow);
+    send_water_added(timeNow, true);
     return;
   }
 
@@ -731,7 +725,7 @@ void checkPump(){
     digitalWrite(pumpControlPin, LOW);
     Serial.println("Pump timer ended");
 
-    send_water_added(timeNow);
+    send_water_added(timeNow, false);
     pumpStart = 0;
   }
 }
@@ -741,7 +735,7 @@ void checkPump(){
 void updateWaterSensors(){
   w1Buffer.write(analogRead(waterSensor1Pin));
   // w1Buffer.printData();
-  waterSensor1State = w1Buffer.avgOfLastN(10);
+  waterSensor1State = w1Buffer.avgOfLastN(8);
   // Serial.print("wtr1 avg: ");
   // Serial.print(waterSensor1State);
 

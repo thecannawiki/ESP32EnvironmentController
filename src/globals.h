@@ -44,6 +44,7 @@ extern bool automaticFanVpd;
 extern bool dehumidifierPrimaryMode;
 extern bool dehumidifierForTemp;
 extern bool heaterState;
+extern bool heaterTempMode;
 extern bool autoHeater;
 extern int waterSensor1State;
 extern int waterSensor2State;
@@ -80,7 +81,7 @@ extern float upperHumidityBound;
 extern float lowerHumidityBound;
 extern float targetVpd;
 extern char sensorjson[240];   //There is a max size u can send to MQTT broker
-extern int maxWaterSensorVal;
+extern int w1maxWaterSensorVal;
 
 extern Buffer humidityBuffer;
 extern Buffer tempBuffer;
@@ -120,6 +121,7 @@ extern Adafruit_NeoPixel pixels;
 
 extern TaskHandle_t longPWMTaskHandle;
 extern TaskHandle_t LedAnimationTaskHandle;
+extern TaskHandle_t TransTestTaskHandle;
 extern TaskHandle_t freezewatchdogTaskHandle;
 extern TaskHandle_t mainLoopTaskHandle;
 extern TaskHandle_t mqttTaskHandle;
@@ -130,3 +132,4 @@ extern Preferences preferences;
 //runtime 
 extern int loopCounter;
 extern bool setupReceived;
+extern int transTestTime;

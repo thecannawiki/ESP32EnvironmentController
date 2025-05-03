@@ -39,7 +39,9 @@
 enum Sensor {BM280_SGP30, SCD4};
 
 extern bool dehumidiferState;
+extern bool humidifierState;
 extern bool automaticDehumidifier;
+extern bool automaticHumidifier;
 extern bool automaticFanVpd;
 extern bool dehumidifierPrimaryMode;
 extern bool dehumidifierForTemp;
@@ -57,6 +59,7 @@ extern bool lockHVAC;    //prevents changes to any HVAC equiptment
 
 //pinout
 extern int dehumidifierControlPin;
+extern int humidifierControlPin;
 extern int fanControlPin;
 extern int pumpControlPin;
 extern int heaterControlPin;

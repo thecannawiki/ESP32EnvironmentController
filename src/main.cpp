@@ -1,7 +1,8 @@
 /**********
 Hardware support and default pins
   * 1 PWM fan          pin12
-  * 1 dehumidifier     pin13
+  * 1 dehumidifier     pin14? Not tested
+  * 1 humidifier       pin13
   * 1 heater           pin33
   * 1 magnetic stirrer pin26
   * 1 neopixel         pin19
@@ -34,6 +35,7 @@ int mqttPublishFailCount =0;
 int PIDLookback = 12; //number of samples to look back on for PID 
 
 bool restoreDehumid = false;
+bool restoreHumid = false;
 
 //Functions for debug
 void scanForWifi(){
@@ -129,6 +131,7 @@ void UpdateSensorJson(){
     dtostrf(fanPower, 5, 1, trimmedfloat);
     doc["fan"] = trimmedfloat;
     doc["DHU"] = dehumidiferState;    //dehumidifier state
+    doc["HU"] = humidifierState;
   }
   doc["ADHU"] = automaticDehumidifier;  //auto dehumidifer
   doc["w1"] = waterSensor1State;
@@ -342,31 +345,33 @@ void reconnectWifi(){
   }
 }
 
-
+// TODO test this function with the exception handling? Is it better??!
 void mqttreconnect() {    //TODO check mqtt stuff is defined
   if(WiFi.status() != WL_CONNECTED){
     Serial.println(F("can't reconnect mqtt. No Wifi connection"));
     return;
   }
   int errcount = 0;
-  // Loop until we're reconnected
+  // Loop until we're reconnected.. If we loop forever here the watchdog will restart
   while (!mqttclient.connected()) {
     Serial.print("Attempting MQTT connection...");
-    // Attempt to connect
-   // String clientId = "esp32";
-    bool connectSuccess = mqttclient.connect(WiFi.macAddress().c_str(), MQTTUSER, MQTTPASS);
-    if (connectSuccess) { //TODO: move out of if and add error handling
-      Serial.println("connected");
-      // Subscribe
-      mqttSubscribeTopics();
-    } else {
+    try {
+      bool connectSuccess = mqttclient.connect(WiFi.macAddress().c_str(), MQTTUSER, MQTTPASS);
+      if (connectSuccess) {
+        Serial.println("connected");
+        // Subscribe
+        mqttSubscribeTopics();
+      }
+    } catch (std::exception& e) {
       Serial.print("failed, mqtt client state=");
-      Serial.print(mqttclient.state());
+      Serial.println(mqttclient.state());
       Serial.println("will try again");
       errcount++;
-      if(errcount>5){
-        ESP.restart();
-      }
+      reconnectWifi();
+    }
+    
+    if(errcount>5){
+      break;
     }
   }
 }
@@ -430,6 +435,17 @@ void operateDehumidifierOnFanUsage(){
     if (fanPower <= softMaxFan * 0.2f){ // 20% of max fan allowed 
         setDehumidiferState(false);
     }
+  }
+}
+
+void operateHumidifier(){
+  float humidityError = humidity - targetHumidity; 
+  if(humidityError <= -5.0f && humidifierState == false){
+    setHumidifierState(true);
+    return;
+  }
+  if(humidityError >=-2.5f && humidifierState == true){
+    setHumidifierState(false);
   }
 }
 
@@ -551,12 +567,6 @@ void ventOnHighTemp(){  //safety feature 👍
 } 
 
 void operateHeater(){
-  // Serial.println("operate heater. To turn on..");
-  // Serial.println("current temp < target-0.5 ??");
-  // Serial.print(tempBuffer.avgOfLastN(5));
-  // Serial.print(" < ");
-  // Serial.println(targetTemperature -0.5f);
-
 
   float humidityError = humidity - targetHumidity;  
   if(temp==-1 || tempBuffer.avgOfLastN(3) >= 28.0f //safety feature 👍
@@ -766,6 +776,10 @@ void mainloop(void * parameter){
       setDehumidiferState(false);
       restoreDehumid = true;
     }
+    if(lockHVAC && humidifierState){
+      setHumidifierState(false);
+      restoreHumid = true;
+    }
     if(lockHVAC && heaterState){
       setHeaterState(false);
     }
@@ -780,7 +794,10 @@ void mainloop(void * parameter){
       setDehumidiferState(true);
       restoreDehumid = false;
     }
-
+    if(restoreHumid && !lockHVAC){
+      setHumidifierState(true);
+      restoreHumid = false;
+    }
     
 
 
@@ -825,6 +842,9 @@ void mainloop(void * parameter){
                 operateDehumidifierOnFanUsage();
               }
             }
+          }
+          if(automaticHumidifier){
+            operateHumidifier();
           }
         }
       } else {   //sensor read failed

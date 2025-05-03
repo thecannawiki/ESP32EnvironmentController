@@ -24,6 +24,20 @@ void setDehumidiferState(bool state){
   preferences.putBool("dehumidifier", dehumidiferState);
 }
 
+void setHumidifierState(bool state){
+  pinMode(humidifierControlPin, OUTPUT);
+  
+  if(state){
+    digitalWrite(humidifierControlPin, HIGH);  
+    Serial.println("turning humidifier ON");
+  } else {
+    digitalWrite(humidifierControlPin, LOW);
+    Serial.println("turning humidifier OFF");
+  }
+  humidifierState = state;
+  preferences.putBool("humidifier", humidifierState);
+}
+
 // TODO start a task when heater turns on to monitor the difference (use temp buffer), if it is different to expected kill heater
 void setHeaterState(bool state){
   if(state){

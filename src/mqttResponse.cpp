@@ -394,9 +394,19 @@ const void handleSetDehumidifierForTemp(const String &message)
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
+const void handleSetHumidifierState(const String &message){
+  bool val = onOffToBool(message);
+  setHumidifierState(val);
+  saveToNVM();
+  char data[20];
+  snprintf_P(data, sizeof(data), PSTR("{\"HU\":%d}"), humidifierState);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+}
+
 /////
 
 /////// define function key (2/4)
+const std::string humidifierStateTopicName = (MQTTCONTROLTOPIC + std::string{"/humidifier"}).data();
 const std::string fanPowerTopicName = (MQTTCONTROLTOPIC + std::string{"/exhaust"}).data();
 const std::string setHeaterTopicName = (MQTTCONTROLTOPIC + std::string{"/heater"}).data();
 const std::string tempTargetTopicName = (MQTTCONTROLTOPIC + std::string{"/heater/target"}).data();
@@ -420,6 +430,7 @@ const std::string pumpTimerTopicName = (MQTTCONTROLTOPIC + std::string{"/pump"})
 /// @brief  (3/4)
 void mqttSubscribeTopics()
 {
+  mqttclient.subscribe(humidifierStateTopicName.data());
   mqttclient.subscribe(dehumidiferAuto.data());
   mqttclient.subscribe(fanAutoVpd.data());
   mqttclient.subscribe(fanSoftMax.data());
@@ -443,6 +454,7 @@ void mqttSubscribeTopics()
 void mqttHandle(char *topic, String message)
 {
   ////Add to map here (4/4) #TODO maybe this can be defined at compile time?
+  functionDict[humidifierStateTopicName] = handleSetHumidifierState;
   functionDict[fanPowerTopicName] = handleFan;
   functionDict[transpirationMeasurement] = handleTranspirationMeasurement;
   functionDict[dehumidiferAuto] = handleSetDehumidifierAuto;

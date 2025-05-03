@@ -37,7 +37,9 @@
 //global vals
 //hardware
 bool dehumidiferState = false;
+bool humidifierState = false;
 bool automaticDehumidifier = true;
+bool automaticHumidifier = true;
 bool automaticFanVpd = true;
 bool dehumidifierPrimaryMode = false; // Primary mode means dehumidifier/humidifier will operate on bounds around target humidity. When false (secondary mode) it will control based on fan power usage
 bool dehumidifierForTemp = false; // The dehumidifier  will operate on bounds around target temperature. This takes precedence over dehumidifier secondary mode when enabled
@@ -58,7 +60,8 @@ int waterSensor1State = 0;
 int waterSensor2State = 0;
 
 //pinout
-int dehumidifierControlPin = 13;
+int dehumidifierControlPin = 14;
+int humidifierControlPin = 13;
 int fanControlPin = 12;
 int pumpControlPin = 33;
 int waterSensor1Pin= 34;

@@ -25,8 +25,7 @@ void setDehumidiferState(bool state){
 }
 
 void setHumidifierState(bool state){
-  pinMode(humidifierControlPin, OUTPUT);
-  
+  humidifierState = state;
   if(state){
     digitalWrite(humidifierControlPin, HIGH);  
     Serial.println("turning humidifier ON");
@@ -34,7 +33,7 @@ void setHumidifierState(bool state){
     digitalWrite(humidifierControlPin, LOW);
     Serial.println("turning humidifier OFF");
   }
-  humidifierState = state;
+  
   preferences.putBool("humidifier", humidifierState);
 }
 

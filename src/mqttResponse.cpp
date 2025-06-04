@@ -28,10 +28,8 @@ const void handleFan(const String &message)
   if (!lockHVAC)
   {
     float num = message.toFloat();
-    if (num > softMaxFan)
-    {
-      num = softMaxFan;
-    }
+    if (num > softMaxFan){ num = softMaxFan;}
+    if (num < softMinFan){ num = softMinFan;}
     if (num > 100)
     {
       num = 100;
@@ -122,6 +120,33 @@ const void handleSoftMaxFan(const String &message)
 
   char data[30];
   snprintf_P(data, sizeof(data), PSTR("{\"softMaxFan\":%f}"), num);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+}
+
+const void handleSoftMinFan(const String &message)
+{
+  float num = message.toFloat();
+  if (num > 100)
+  {
+    num = 100;
+  }
+  if (num < 0)
+  {
+    num = 0;
+  }
+
+  softMinFan = num;
+  if (fanPower > num)
+  {
+    fanPower = num;
+    fanChanged = true;
+  }
+
+  preferences.putFloat("softMinFan", num);
+  saveToNVM();
+
+  char data[30];
+  snprintf_P(data, sizeof(data), PSTR("{\"softMinFan\":%f}"), num);
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
@@ -394,12 +419,31 @@ const void handleSetDehumidifierForTemp(const String &message)
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
-const void handleSetHumidifierState(const String &message){
+const void handleHumidifier(const String &message){
+  if(message == "auto"){
+    automaticHumidifier = true;
+    preferences.putBool("AHU", automaticHumidifier);
+    saveToNVM();
+    char data[20];
+    snprintf_P(data, sizeof(data), PSTR("{\"AHU\":%d}"), automaticHumidifier);
+    mqttclient.publish(MQTTPUBLISHTOPIC, data);
+    return;
+  } 
+  if(message == "man"){
+    automaticHumidifier = false;
+    preferences.putBool("AHU", automaticHumidifier);
+    saveToNVM();
+    char data[20];
+    snprintf_P(data, sizeof(data), PSTR("{\"AHU\":%d}"), automaticHumidifier);
+    mqttclient.publish(MQTTPUBLISHTOPIC, data);
+    return;
+  }
+  
   bool val = onOffToBool(message);
   setHumidifierState(val);
   saveToNVM();
   char data[20];
-  snprintf_P(data, sizeof(data), PSTR("{\"HU\":%d}"), humidifierState);
+  snprintf_P(data, sizeof(data), PSTR("{\"HU\":%d,\"AHU\":%d}"), humidifierState, automaticHumidifier);
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
@@ -412,6 +456,7 @@ const std::string setHeaterTopicName = (MQTTCONTROLTOPIC + std::string{"/heater"
 const std::string tempTargetTopicName = (MQTTCONTROLTOPIC + std::string{"/heater/target"}).data();
 const std::string heaterForTempTopicName = (MQTTCONTROLTOPIC + std::string{"/heater/tempMode"}).data();
 const std::string fanSoftMax = (MQTTCONTROLTOPIC + std::string{"/exhaust/softMax"}).data();
+const std::string fanSoftMin = (MQTTCONTROLTOPIC + std::string{"/exhaust/softMin"}).data();
 const std::string transpirationMeasurement = (MQTTCONTROLTOPIC + std::string{"/transTest"}).data();
 const std::string dehumidiferToggle = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/toggle"}).data();
 const std::string dehumidiferAuto = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/auto"}).data();
@@ -434,6 +479,7 @@ void mqttSubscribeTopics()
   mqttclient.subscribe(dehumidiferAuto.data());
   mqttclient.subscribe(fanAutoVpd.data());
   mqttclient.subscribe(fanSoftMax.data());
+  mqttclient.subscribe(fanSoftMin.data());
   mqttclient.subscribe(dehumidiferPrimary.data());
   mqttclient.subscribe(dehumidiferForTempEndpoint.data());
   mqttclient.subscribe(dehumidiferLower.data());
@@ -454,13 +500,14 @@ void mqttSubscribeTopics()
 void mqttHandle(char *topic, String message)
 {
   ////Add to map here (4/4) #TODO maybe this can be defined at compile time?
-  functionDict[humidifierStateTopicName] = handleSetHumidifierState;
+  functionDict[humidifierStateTopicName] = handleHumidifier;
   functionDict[fanPowerTopicName] = handleFan;
   functionDict[transpirationMeasurement] = handleTranspirationMeasurement;
   functionDict[dehumidiferAuto] = handleSetDehumidifierAuto;
   functionDict[dehumidiferPrimary] = handleSetDehumidPrimaryMode;
   functionDict[fanAutoVpd] = handleSetFanAutoVpd;
   functionDict[fanSoftMax] = handleSoftMaxFan;
+  functionDict[fanSoftMin] = handleSoftMinFan;
   functionDict[dehumidiferLower] = handlelowerBound;
   functionDict[dehumidiferUpper] = handleupperbound;
   functionDict[dehumidiferToggle] = toggleDehumidifier;

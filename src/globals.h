@@ -54,6 +54,7 @@ extern bool pumpState;
 extern float fanPower;
 extern float lastPowerVal;
 extern float softMaxFan;
+extern float softMinFan;
 extern float minpercentvalue; //min power percentage required to make fan spin 
 extern bool lockHVAC;    //prevents changes to any HVAC equiptment
 

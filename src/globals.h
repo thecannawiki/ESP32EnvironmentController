@@ -91,6 +91,7 @@ extern Buffer humidityBuffer;
 extern Buffer tempBuffer;
 extern Buffer errorBuffer;
 extern Buffer w1Buffer;
+extern Buffer fanBuffer;
 
 
 //PID

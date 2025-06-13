@@ -2,7 +2,7 @@
 
 void pressDehumidifierButton(){
   pinMode(dehumidifierControlPin, OUTPUT);
-  Serial.println("Switching dehumdifier");
+  Serial.println("Switching dehumidifier");
   digitalWrite(dehumidifierControlPin, HIGH);  
   delay(500); 
   digitalWrite(dehumidifierControlPin, LOW); 

@@ -2,7 +2,7 @@
 #define BUFFER
 
     enum BufferStatus {BUFFER_OK, BUFFER_EMPTY, BUFFER_FULL};
-    #define BUFFER_SIZE 20
+    #define BUFFER_SIZE 64
 
     class Buffer {
         public:

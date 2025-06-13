@@ -75,19 +75,20 @@ float temp = -1;
 float humidity = -1;
 float targetHumidity = 60;  //Sensible default
 float targetTemperature = 25.0f;
-float ventTemp = 33;
+float ventTemp = 35;
 uint16_t co2 = -1;
 float tvoc = 0;
 float upperHumidityBound = 60.0f;
 float lowerHumidityBound = 40.0f;
 float targetVpd = 1.0f;
-char sensorjson[240];   //There is a max size u can send to MQTT broker
+char sensorjson[420];   //There is a max size u can send to MQTT broker
 int w1maxWaterSensorVal = 1800;
 
 Buffer humidityBuffer;
 Buffer tempBuffer;
 Buffer errorBuffer;
 Buffer w1Buffer;
+Buffer fanBuffer;
 
 
 //PID

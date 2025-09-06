@@ -9481,7 +9481,7 @@
 			(justify left bottom)
 		)
 	)
-	(gr_text "1.1.0\n"
+	(gr_text "1.1.1\n"
 		(at 70.5 52 0)
 		(layer "F.SilkS")
 		(uuid "d3c29545-aed4-4250-b5d0-c3805a5af7f6")

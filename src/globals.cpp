@@ -9,7 +9,6 @@
 #include <WiFiMulti.h>
 #include <Wire.h>
 #include <SPI.h>
-
 #include <PubSubClient.h>
 #include <WiFiClientSecure.h>
 #include <Adafruit_NeoPixel.h>
@@ -17,21 +16,17 @@
 #include <Preferences.h>
 #include <buffer.h>
 
+#include <SensirionI2CScd4x.h>
+#include <SparkFunBME280.h> //edit this library to change the i2c address if bme is not found
+#include <SparkFun_SGP30_Arduino_Library.h>
 
-#ifdef SCD4
-    #include <SensirionI2CScd4x.h>
-    SensirionI2CScd4x scd4x;
-    bool SCD40Mounted = false;
-#endif
+SensirionI2CScd4x scd4x;
+bool SCD40Mounted = false;
+BME280 bme280;
+SGP30 sgp30;
+bool bmeMounted = false;
+bool sgpMounted = false;
 
-#ifdef BME
-    #include <SparkFunBME280.h> //edit this library to change the i2c address if bme is not found
-    #include <SparkFun_SGP30_Arduino_Library.h>
-    BME280 bme280;
-    SGP30 sgp30;
-    bool bmeMounted = false;
-    bool sgpMounted = false;
-#endif
 
 
 //global vals
@@ -44,6 +39,7 @@ bool automaticFanVpd = true;
 bool dehumidifierPrimaryMode = false; // Primary mode means dehumidifier/humidifier will operate on bounds around target humidity. When false (secondary mode) it will control based on fan power usage
 bool dehumidifierForTemp = false; // The dehumidifier  will operate on bounds around target temperature. This takes precedence over dehumidifier secondary mode when enabled
 bool heaterState = false;
+int heaterPower = 50;
 bool heaterTempMode = false;
 bool autoHeater = false;
 bool pumpState = false;
@@ -67,7 +63,7 @@ int fanControlPin = 12;
 int pumpControlPin = 33;
 int waterSensor1Pin= 34;
 int waterSensor2Pin= 4;
-int heaterControlPin = 26;
+int heaterControlPin = 27;
 int neopixelPin = 19;
 
 //environ vals
@@ -75,13 +71,13 @@ float temp = -1;
 float humidity = -1;
 float targetHumidity = 60;  //Sensible default
 float targetTemperature = 25.0f;
-float ventTemp = 35;
+float ventTemp = 35.0f;
 uint16_t co2 = -1;
 float tvoc = 0;
 float upperHumidityBound = 60.0f;
 float lowerHumidityBound = 40.0f;
 float targetVpd = 1.0f;
-char sensorjson[420];   //There is a max size u can send to MQTT broker
+char sensorjson[420];   //This is limited by mqtt buffer size
 int w1maxWaterSensorVal = 1800;
 
 Buffer humidityBuffer;
@@ -111,11 +107,14 @@ int value = 0;
 
 // setting PWM properties
 int freq = 200000;
+int heaterFreq = 20000;
 int fanPWMchannel = 0;
-int resolution = 10;
-int maxPWMval = 1023;
+int heaterPWMchannel = 1;
+int resolution = 10;    //10-bit
+int maxPWMval = 1023;  // for resolution of 10-bit
 bool fanChanged = false;
-float softMaxPWM = (MAXFANCONTROLLEROUTPUT / 100.0) * maxPWMval;
+float fanSoftMaxPWM = (MAXFANCONTROLLEROUTPUT / 100.0) * maxPWMval;
+float heaterSoftMaxPWM = (MAXHEATEROUTPUT / 100.0) * maxPWMval;
 
 //global objects
 WiFiMulti wifiMulti;

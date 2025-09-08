@@ -1,6 +1,8 @@
 #include <globals.h>
 #include <buffer.h>
 
+int sensorReadCount = 0;
+
 #ifdef BME
     bool initSensors(){
         //Wire.begin(13, 12);               //SDA orange, SCL purple      // Default is SDA 14, SCL 15
@@ -48,29 +50,26 @@
         if(bmeMounted){
             float h = bme280.readFloatHumidity();
             float t = bme280.readTempC();
-            if(t <0){
+            if(t <0 || (sensorReadCount > 5 && t > 2*tempBuffer.avgOfLastN(3))){  // TODO if > x number of read (therefore sensor warm) AND t> 
                 temp = -1;
                 humidity = -1;
                 bmeMounted = false;
                 success = false;
             } else {
+                sensorReadCount++;
                 Serial.print("* ");
                 success = true;
-
-                //BME requires a filter to prevent crazy spikes
-                // float last_humidity = humidity;
-                // humidity = (last_humidity + h) / 2;
 
                 humidityBuffer.write(h);
                 tempBuffer.write(t);
 
-                Serial.println("hu");
+                Serial.print("hu ");
                 humidityBuffer.printData();
 
-                Serial.println("temp");
+                Serial.print("temp ");
                 tempBuffer.printData();
                 humidity = humidityBuffer.avgOfLastN(3);
-                temp = humidityBuffer.avgOfLastN(3);
+                temp = tempBuffer.avgOfLastN(3);
 
             }
         }

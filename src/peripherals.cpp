@@ -10,7 +10,7 @@ void pressDehumidifierButton(){
   preferences.putBool("dehumidifier", dehumidiferState);
 }
 
-void setDehumidiferState(bool state){
+void setDehumidifierState(bool state){
   pinMode(dehumidifierControlPin, OUTPUT);
   
   if(state){
@@ -40,10 +40,16 @@ void setHumidifierState(bool state){
 // TODO start a task when heater turns on to monitor the difference (use temp buffer), if it is different to expected kill heater
 void setHeaterState(bool state){
   if(state){
-    digitalWrite(heaterControlPin, HIGH);  
+    // digitalWrite(heaterControlPin, HIGH);  
+    
+    float p = heaterPower / 100.0f;
+    int power =  p * maxPWMval;
+
+    ledcWrite(heaterPWMchannel, power);
     Serial.println("turning heater ON");
   } else {
-    digitalWrite(heaterControlPin, LOW);
+    // digitalWrite(heaterControlPin, LOW);
+    ledcWrite(heaterPWMchannel, 0);
     Serial.println("turning heater OFF");
   }
 

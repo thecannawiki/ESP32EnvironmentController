@@ -77,9 +77,12 @@ const void handlePumpTimer(const String &message)
     return;
   }
 
-  if (waterSensor1State < 4095 && waterSensor1State > w1maxWaterSensorVal)
+  if (waterSensor1State > w1maxWaterSensorVal)
   {
     Serial.println("Water sensor 1 detects water! pump disabled");
+    char data[60];
+    snprintf_P(data, sizeof(data), PSTR("{\"pump_time_active\":%f,\"early_stop\":%d}"), 0.0f, bool(true));
+    mqttclient.publish(MQTTPUBLISHTOPIC, data);
     return;
   }
 
@@ -173,7 +176,11 @@ void transpirationTestTask(void *message)
   for (int i = 0; i < time; i++)
   {
     vTaskDelay(1000);
-    Serial.println(i);
+    Serial.println("");
+    Serial.print("transpiration test ongoing:");
+    Serial.print(i);
+    Serial.print("/");
+    Serial.println(time);
   }
   lockHVAC = false;
   Serial.println("Test complete");
@@ -189,8 +196,6 @@ void transpirationTestTask(void *message)
 const void handleTranspirationMeasurement(const String &message)
 {
   int time = message.toInt();
-  Serial.print("time ");
-  Serial.print(time);
 
   if (time < 1)
   {
@@ -201,6 +206,10 @@ const void handleTranspirationMeasurement(const String &message)
   {
     mqttclient.publish(MQTTPUBLISHTOPIC, "time too long");
     Serial.print("trans test time to long");
+    return;
+  }
+  if(!(SCD40Mounted || bmeMounted)){
+    Serial.println("No sensors mounted for trans test");
     return;
   }
 
@@ -225,18 +234,33 @@ const void toggleDehumidifier(const String &message)
 {
   if (!lockHVAC)
   {
-    setDehumidiferState(!dehumidiferState);
+    setDehumidifierState(!dehumidiferState);
   }
 }
 
 const void handleTargetVpd(const String &message)
 {
   float num = message.toFloat();
-  if (num <= 2.0f && num >= 0.4f)
+  if (num <= 3.0f && num >= 0.5f)
   {
     targetVpd = num;
     preferences.putFloat("tvpd", targetVpd);
     saveToNVM();
+  }
+}
+
+const void handleHeaterPower(const String &message)
+{
+  int num = message.toInt();
+  if (num > 0 && num <= 100)
+  {
+    heaterPower = num;
+    // preferences.putFloat("=", targetTemperature);
+    // saveToNVM();
+    char data[60];
+    snprintf_P(data, sizeof(data), PSTR("{\"heaterPower\":%f}"), heaterPower);
+    mqttclient.publish(MQTTPUBLISHTOPIC, data);
+    setHeaterState(heaterState); // update heater hardware
   }
 }
 
@@ -455,6 +479,7 @@ const std::string fanPowerTopicName = (MQTTCONTROLTOPIC + std::string{"/exhaust"
 const std::string setHeaterTopicName = (MQTTCONTROLTOPIC + std::string{"/heater"}).data();
 const std::string tempTargetTopicName = (MQTTCONTROLTOPIC + std::string{"/heater/target"}).data();
 const std::string heaterForTempTopicName = (MQTTCONTROLTOPIC + std::string{"/heater/tempMode"}).data();
+const std::string heaterPowerTopicName = (MQTTCONTROLTOPIC + std::string{"/heater/power"}).data();
 const std::string fanSoftMax = (MQTTCONTROLTOPIC + std::string{"/exhaust/softMax"}).data();
 const std::string fanSoftMin = (MQTTCONTROLTOPIC + std::string{"/exhaust/softMin"}).data();
 const std::string transpirationMeasurement = (MQTTCONTROLTOPIC + std::string{"/transTest"}).data();
@@ -495,6 +520,7 @@ void mqttSubscribeTopics()
   mqttclient.subscribe(tempTargetTopicName.data());
   mqttclient.subscribe(heaterForTempTopicName.data());
   mqttclient.subscribe(pumpTimerTopicName.data());
+  mqttclient.subscribe(heaterPowerTopicName.data());
 }
 
 void mqttHandle(char *topic, String message)
@@ -518,6 +544,7 @@ void mqttHandle(char *topic, String message)
   functionDict[dehumidiferForTempEndpoint] = handleSetDehumidifierForTemp;
   functionDict[setHeaterTopicName] = handlesetHeater;
   functionDict[pumpTimerTopicName] = handlePumpTimer;
+  functionDict[heaterPowerTopicName] = handleHeaterPower;
   functionDict[tempTargetTopicName] = handleTargetTemp;
   functionDict[heaterForTempTopicName] = handleHeaterForTemp;
 

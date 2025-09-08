@@ -17,22 +17,16 @@
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include "buffer.h"
+#include <SensirionI2CScd4x.h>
+#include <SparkFunBME280.h> //edit this library to change the i2c address if bme is not found
+#include <SparkFun_SGP30_Arduino_Library.h>
 
-#ifdef SCD4
-    #include <SensirionI2CScd4x.h>
-    extern SensirionI2CScd4x scd4x;
-    extern bool SCD40Mounted;
-#endif
-
-#ifdef BME
-    #include <SparkFunBME280.h> //edit this library to change the i2c address if bme is not found
-    #include <SparkFun_SGP30_Arduino_Library.h>
-    extern BME280 bme280;
-    extern SGP30 sgp30;
-    extern bool bmeMounted;
-    extern bool sgpMounted;
-#endif
-
+extern SensirionI2CScd4x scd4x;
+extern bool SCD40Mounted;
+extern BME280 bme280;
+extern SGP30 sgp30;
+extern bool bmeMounted;
+extern bool sgpMounted;
 //global vals
 //hardware
 
@@ -46,6 +40,7 @@ extern bool automaticFanVpd;
 extern bool dehumidifierPrimaryMode;
 extern bool dehumidifierForTemp;
 extern bool heaterState;
+extern int heaterPower;
 extern bool heaterTempMode;
 extern bool autoHeater;
 extern int waterSensor1State;
@@ -113,11 +108,14 @@ extern int value;
 
 // setting PWM properties
 extern int freq;
+extern int heaterFreq;
 extern int fanPWMchannel;
+extern int heaterPWMchannel;
 extern int resolution;
 extern int maxPWMval;
 extern bool fanChanged;
-extern float softMaxPWM;
+extern float fanSoftMaxPWM;
+extern bool heaterSoftMaxPWM;
 
 //global objects
 extern WiFiMulti wifiMulti;

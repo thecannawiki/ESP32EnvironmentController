@@ -28,6 +28,9 @@ Hardware support and default pins
   #include <scd4.h>
 #endif
 
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
+
 int sensorMountFailCount = 0;
 int sensorReadFailCount = 0;
 int mqttPublishFailCount = 0;
@@ -92,12 +95,10 @@ void i2cScan(){
 
 
 bool refreshNetworkTime(){
-  
   if(!getLocalTime(&timeinfo)){
     Serial.println("Failed to obtain time");
     return false;
   }
-  
   return true;
 }
 
@@ -107,30 +108,30 @@ void UpdateSensorJson(){
   char trimmedfloat[10];
   
   dtostrf(temp, 5, 3, trimmedfloat);  
-  doc["T"] = trimmedfloat;
+  doc["T"] = atof(trimmedfloat);
   
   dtostrf(humidity, 5, 3, trimmedfloat); 
-  doc["RH"] = trimmedfloat;
+  doc["RH"] = atof(trimmedfloat);
   
   if(co2 != 65535){doc["co2"] = co2;}   // 65535 is the co2 value from the SCD-40 when its still warming up
 
   // doc["tvoc"] = tvoc;
   dtostrf(calcVpd(temp, humidity), 4, 2, trimmedfloat); 
-  doc["vpd"] = trimmedfloat;
+  doc["vpd"] = atof(trimmedfloat);
   dtostrf(targetVpd, 4, 2, trimmedfloat); 
-  doc["TVpd"] = trimmedfloat;
+  doc["TVpd"] = atof(trimmedfloat);
   doc["AF"] = int(automaticFanVpd); //auto fan
   dtostrf(targetHumidity, 5, 2, trimmedfloat);
-  doc["TRH"] = trimmedfloat;        //Target RH (humidity)
+  doc["TRH"] = atof(trimmedfloat);        //Target RH (humidity)
   dtostrf(P, 4, 2, trimmedfloat);
-  doc["P"] = trimmedfloat;
+  doc["P"] = atof(trimmedfloat);
   dtostrf(I, 4, 2, trimmedfloat);
-  doc["I"] = trimmedfloat;
+  doc["I"] = atof(trimmedfloat);
   dtostrf(D, 4, 2, trimmedfloat);
-  doc["D"] = trimmedfloat;
+  doc["D"] = atof(trimmedfloat);
   if(!lockHVAC){
     dtostrf(fanPower, 4, 1, trimmedfloat);
-    doc["F"] = trimmedfloat;  //fan
+    doc["F"] = atof(trimmedfloat);  //fan
     doc["DHU"] = int(dehumidiferState);    //dehumidifier state
     doc["HU"] = int(humidifierState);
   }
@@ -138,10 +139,8 @@ void UpdateSensorJson(){
   doc["AHU"] = int(automaticHumidifier);  //auto dehumidifier
   doc["w1"] = waterSensor1State;
   doc["H"] = int(heaterState); //heater
-
   doc["w1T"] = w1maxWaterSensorVal;
 
-  // too much data
   //doc["primaryHumid"] = dehumidifierPrimaryMode;
   // dtostrf(lowerHumidityBound, 5, 4, trimmedfloat);
   // doc["lowerBound"] = trimmedfloat;
@@ -267,7 +266,7 @@ void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-100
   if(powerVal == 0){
     ledcWrite(fanPWMchannel, 0);
   }
-  powerVal = map(powerVal, 0, 1000, 0, softMaxPWM);
+  powerVal = map(powerVal, 0, 1000, 0, fanSoftMaxPWM);
 
 
   // if(percentVal < minpercentvalue){
@@ -303,7 +302,7 @@ void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-100
       Serial.print("fan ramp up ");
       Serial.println(val);
 
-      ledcWrite(fanPWMchannel, map(val, 0, 1000, 0, softMaxPWM));
+      ledcWrite(fanPWMchannel, map(val, 0, 1000, 0, fanSoftMaxPWM));
       vTaskDelay(300);
     }
   } 
@@ -315,7 +314,7 @@ void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-100
     kickFan();
   }
 
-  ledcWrite(fanPWMchannel, map(powerVal, 0, 1000, 0, softMaxPWM));
+  ledcWrite(fanPWMchannel, map(powerVal, 0, 1000, 0, fanSoftMaxPWM));
 
   preferences.putFloat("fanPower", fanPower);
   saveToNVM();
@@ -431,11 +430,11 @@ void operateDehumidifierOnBounds(){   //if humidity too high turn on the dehumid
     Serial.print("O ");
     if(dehumidiferState){ //dehumidifier on
         if(humidity <= lowerHumidityBound){
-          setDehumidiferState(false);
+          setDehumidifierState(false);
         }
     } else{ //dehumidifer off
       if(humidity >= upperHumidityBound){
-        setDehumidiferState(true);
+        setDehumidifierState(true);
       }
     }
   }
@@ -444,11 +443,11 @@ void operateDehumidifierOnBounds(){   //if humidity too high turn on the dehumid
 void operateDehumidifierOnFanUsage(){
   if(!dehumidiferState){
     if (fanPower >= softMaxFan * 0.5f){ // 50% of max fan allowed 
-      setDehumidiferState(true);
+      setDehumidifierState(true);
     }
   } else {
     if (fanPower <= softMaxFan * 0.2f){ // 20% of max fan allowed 
-        setDehumidiferState(false);
+        setDehumidifierState(false);
     }
   }
 }
@@ -469,10 +468,10 @@ void operateHumidifier(){
 void operateDehumidifierOnTempBounds(){
  if(temp>=(float)-1){
     if(temp <= 24){
-      setDehumidiferState(true);
+      setDehumidifierState(true);
     }
     if(temp >= 26){
-      setDehumidiferState(false);
+      setDehumidifierState(false);
     }
  }
 }
@@ -586,16 +585,16 @@ void ventOnHighTemp(){  //safety feature 👍
 
 void operateHeater(){
   float humidityError = humidity - targetHumidity;  
-  if(temp==-1 || tempBuffer.avgOfLastN(3) >= 28.0f //safety feature 👍
-    || (heaterTempMode && tempBuffer.avgOfLastN(3) >= targetTemperature) ||  humidityError < -1.5f ){ //always care if we are push humidity too dry
+  if(temp==-1 || tempBuffer.avgOfLastN(3) >= ventTemp //safety feature 👍
+    || (tempBuffer.avgOfLastN(3) >= targetTemperature) ||  humidityError < 0.0f ){ //always care if we are push humidity too dry
     setHeaterState(false);
     return;
   } 
 
-  if((!heaterTempMode && humidityError >= 2.5f) || (heaterTempMode && tempBuffer.avgOfLastN(5) < targetTemperature)){
+  if((!heaterTempMode && humidityError >= 2.5f) || (!heaterTempMode && fanPower >= 0.5f * softMaxFan) || (heaterTempMode && tempBuffer.avgOfLastN(5) < targetTemperature)){
     setHeaterState(true);
-    if(fanPower > 30){
-      fanPower = 30;
+    if(fanPower > 15){
+      fanPower = 15;
     }
     fanChanged = true;
   }
@@ -726,11 +725,10 @@ void checkPump(){
     digitalWrite(pumpControlPin, LOW);
     return;
   }
-
   
   time(&timeNow);
 
-  if(waterSensor1State <4095 && waterSensor1State > w1maxWaterSensorVal){
+  if(waterSensor1State > w1maxWaterSensorVal){
     pumpEnd = 0;
     pumpState = false;
     digitalWrite(pumpControlPin, LOW);
@@ -739,11 +737,6 @@ void checkPump(){
     return;
   }
 
-  
-  // Serial.print("check epoch pump");
-  // Serial.println(now);
-  // Serial.print("pumpEnd time");
-  // Serial.println(pumpEnd);
   if(timeNow >= pumpEnd){
     pumpEnd = 0;
     pumpState = false;
@@ -761,16 +754,9 @@ void updateWaterSensors(){
   w1Buffer.write(analogRead(waterSensor1Pin));
   // w1Buffer.printData();
   waterSensor1State = w1Buffer.avgOfLastN(8);
-  // Serial.print("wtr1 avg: ");
-  // Serial.print(waterSensor1State);
 
 
   waterSensor2State = analogRead(waterSensor2Pin);
-  // Serial.println("");
-  // Serial.print("wtr snsr 1: ");
-  // Serial.print(waterSensor1State);
-  // Serial.print(std::string("   wtr snsr 2: "));
-  // Serial.println(waterSensor2State);
 
   serialLog("water sensor 1: ", false);
   Serial.println(waterSensor1State);
@@ -788,7 +774,7 @@ void mainloop(void * parameter){
 
   while(true){
     if(lockHVAC && dehumidiferState){   //turn off dehumidifer when HVAC is locked (this is now a sideffect of the variable state!)
-      setDehumidiferState(false);
+      setDehumidifierState(false);
       restoreDehumid = true;
     }
     if(lockHVAC && humidifierState){
@@ -806,7 +792,7 @@ void mainloop(void * parameter){
     }
 
     if(restoreDehumid && !lockHVAC){
-      setDehumidiferState(true);
+      setDehumidifierState(true);
       restoreDehumid = false;
     }
     if(restoreHumid && !lockHVAC){
@@ -815,10 +801,6 @@ void mainloop(void * parameter){
     }
     
 
-
-    // if(loopCounter%1 == 0){
-    //   updateWaterSensors();
-    // }
 
     if(loopCounter%5 == 0){
       updateWaterSensors();
@@ -846,8 +828,10 @@ void mainloop(void * parameter){
           }
 
           if(automaticFanVpd){
-            fanPID();
-            ventOnHighTemp();
+            if(!heaterState){ // lock fan while heater is on
+              fanPID();
+            }
+            ventOnHighTemp(); // allow vent in any case!
           }
           if(automaticDehumidifier){
             if(dehumidifierPrimaryMode){
@@ -964,7 +948,7 @@ void mqttLoop(void * parameter){ //Keeps the mqtt client connected and receives/
 
 
 void setup() {
-  //WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector 
+  // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector 
   Serial.begin(115200);
   while (!Serial) { delay(300); } // Wait for serial console to open!
   delay(1000);
@@ -993,16 +977,16 @@ void setup() {
   //Pin set up
   ledcSetup(fanPWMchannel, freq, resolution);
   ledcAttachPin(fanControlPin, fanPWMchannel);
+
   pinMode(pumpControlPin, OUTPUT);
   digitalWrite(pumpControlPin, LOW); 
-  pinMode(heaterControlPin, OUTPUT);
-  digitalWrite(heaterControlPin, LOW); 
+
+  // pinMode(heaterControlPin, OUTPUT);
+  // digitalWrite(heaterControlPin, LOW); 
+  ledcSetup(heaterPWMchannel, heaterFreq, resolution);
+  ledcAttachPin(heaterControlPin, heaterPWMchannel);
+
   pinMode(humidifierControlPin, OUTPUT);
-
-  // restore humidifer state
-  digitalWrite(humidifierControlPin, humidifierState ? HIGH : LOW);
-  updateFanPower();
-
 
   //Connect wifi
   Serial.println("starting WIFI..");
@@ -1059,10 +1043,14 @@ void setup() {
   server.begin();
 
   flash3green();
+
+  // restore humidifer state
+  digitalWrite(humidifierControlPin, humidifierState ? HIGH : LOW);
+  updateFanPower();
+
   xTaskCreate(mqttLoop, "mqttHandler", 4000, 0, 1, &mqttTaskHandle);
   xTaskCreate(mainloop, "main", 90000, 0, 0, &mainLoopTaskHandle);
 
- 
   refreshNetworkTime();
 }
 

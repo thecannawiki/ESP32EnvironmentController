@@ -45,7 +45,7 @@ void mqttconnectloop(void * parameter){
     if (col){
         setPixelColor(pixels.Color(14, 218, 240));  //blue
       }else{
-        setPixelColor(pixels.Color(7, 50, 224));    //differnet blue
+        setPixelColor(pixels.Color(7, 50, 224));    //different blue
     }
 
     col = !col;

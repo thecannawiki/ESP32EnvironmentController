@@ -8,6 +8,7 @@ int waterSensor1 = 34;
 int waterSensor2 = 4;
 int neopixelPin = 19;
 int heater = 26;
+heaterPWM signal 27
 
 I2C 
     CLK 22  (purple)

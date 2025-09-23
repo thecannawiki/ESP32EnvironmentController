@@ -53,6 +53,10 @@ extern float softMinFan;
 extern float minpercentvalue; //min power percentage required to make fan spin 
 extern bool lockHVAC;    //prevents changes to any HVAC equiptment
 
+//settings
+extern bool vpdMode;
+
+
 //pinout
 extern int dehumidifierControlPin;
 extern int humidifierControlPin;

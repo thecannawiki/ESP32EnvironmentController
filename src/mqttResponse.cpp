@@ -249,6 +249,17 @@ const void handleTargetVpd(const String &message)
   }
 }
 
+const void handleTargetHumidity(const String &message)
+{
+  float num = message.toFloat();
+  targetHumidity = num;
+  preferences.putFloat("targetHumidity", targetHumidity);
+  saveToNVM();
+  char data[50];
+  snprintf_P(data, sizeof(data), PSTR("{\"targetRH\":%f}"), targetHumidity);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+}
+
 const void handleHeaterPower(const String &message)
 {
   int num = message.toInt();
@@ -370,29 +381,8 @@ const void handleSetDehumidPrimaryMode(const String &message)
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
-const void handlelowerBound(const String &message)
-{
-  float num = message.toFloat();
-  lowerHumidityBound = num;
-  preferences.putFloat("lowerBound", lowerHumidityBound);
-  saveToNVM();
-  char data[50];
-  snprintf_P(data, sizeof(data), PSTR("{\"lowerBound\":%f}"), lowerHumidityBound);
-  mqttclient.publish(MQTTPUBLISHTOPIC, data);
-  // mqttPublishSensorData();
-}
 
-const void handleupperbound(const String &message)
-{
-  float num = message.toFloat();
-  upperHumidityBound = num;
-  preferences.putFloat("upperBound", upperHumidityBound);
-  saveToNVM();
-  char data[50];
-  snprintf_P(data, sizeof(data), PSTR("{\"upperBound\":%f}"), upperHumidityBound);
-  mqttclient.publish(MQTTPUBLISHTOPIC, data);
-  // mqttPublishSensorData();
-}
+
 
 const void handlesetHeater(const String &message)
 {
@@ -471,6 +461,23 @@ const void handleHumidifier(const String &message){
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
+const void handleAutoControlMode(const String &message){
+  if(message == "VPD"){
+    vpdMode=true;
+  }
+
+  else if(message == "RH"){
+    vpdMode=false;
+  }
+
+  preferences.putBool("VpdMode", vpdMode);
+  saveToNVM();
+  char data[20];
+  snprintf_P(data, sizeof(data), PSTR("{\"VPDMode\":%d}"), vpdMode);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+
+}
+
 /////
 
 /////// define function key (2/4)
@@ -488,13 +495,14 @@ const std::string dehumidiferAuto = (MQTTCONTROLTOPIC + std::string{"/dehumidifi
 const std::string dehumidiferPrimary = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/primary"}).data();
 const std::string dehumidiferForTempEndpoint = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/autoTemp"}).data();
 const std::string fanAutoVpd = (MQTTCONTROLTOPIC + std::string{"/exhaust/autoVpd"}).data();
-const std::string dehumidiferLower = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/lower"}).data();
-const std::string dehumidiferUpper = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/upper"}).data();
 const std::string setTargetVpd = (MQTTCONTROLTOPIC + std::string{"/targetVpd"}).data();
 const std::string setP = (MQTTCONTROLTOPIC + std::string{"/P"}).data();
 const std::string setI = (MQTTCONTROLTOPIC + std::string{"/I"}).data();
 const std::string setD = (MQTTCONTROLTOPIC + std::string{"/D"}).data();
 const std::string pumpTimerTopicName = (MQTTCONTROLTOPIC + std::string{"/pump"}).data();
+const std::string controlModeTopicName = (MQTTCONTROLTOPIC + std::string{"/auto/mode"}).data();
+const std::string handleTargetHumidityTopicName = (MQTTCONTROLTOPIC + std::string{"/targetRH"}).data();
+
 //////////
 
 /// @brief  (3/4)
@@ -507,8 +515,6 @@ void mqttSubscribeTopics()
   mqttclient.subscribe(fanSoftMin.data());
   mqttclient.subscribe(dehumidiferPrimary.data());
   mqttclient.subscribe(dehumidiferForTempEndpoint.data());
-  mqttclient.subscribe(dehumidiferLower.data());
-  mqttclient.subscribe(dehumidiferUpper.data());
   mqttclient.subscribe(dehumidiferToggle.data());
   mqttclient.subscribe(fanPowerTopicName.data());
   mqttclient.subscribe(transpirationMeasurement.data());
@@ -521,6 +527,8 @@ void mqttSubscribeTopics()
   mqttclient.subscribe(heaterForTempTopicName.data());
   mqttclient.subscribe(pumpTimerTopicName.data());
   mqttclient.subscribe(heaterPowerTopicName.data());
+  mqttclient.subscribe(controlModeTopicName.data());
+  mqttclient.subscribe(handleTargetHumidityTopicName.data());
 }
 
 void mqttHandle(char *topic, String message)
@@ -534,8 +542,6 @@ void mqttHandle(char *topic, String message)
   functionDict[fanAutoVpd] = handleSetFanAutoVpd;
   functionDict[fanSoftMax] = handleSoftMaxFan;
   functionDict[fanSoftMin] = handleSoftMinFan;
-  functionDict[dehumidiferLower] = handlelowerBound;
-  functionDict[dehumidiferUpper] = handleupperbound;
   functionDict[dehumidiferToggle] = toggleDehumidifier;
   functionDict[setTargetVpd] = handleTargetVpd;
   functionDict[setP] = handleSetP;
@@ -547,6 +553,8 @@ void mqttHandle(char *topic, String message)
   functionDict[heaterPowerTopicName] = handleHeaterPower;
   functionDict[tempTargetTopicName] = handleTargetTemp;
   functionDict[heaterForTempTopicName] = handleHeaterForTemp;
+  functionDict[controlModeTopicName] = handleAutoControlMode;
+  functionDict[handleTargetHumidityTopicName] = handleTargetHumidity;
 
   // Call the corresponding function based on the input
   std::string topicName = topic;

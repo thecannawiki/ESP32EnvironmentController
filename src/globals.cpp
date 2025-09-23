@@ -56,6 +56,14 @@ unsigned long heaterEnd = 0;
 int waterSensor1State = 0;
 int waterSensor2State = 0;
 
+//settings
+float targetHumidity = 60;  //Sensible default
+float targetVpd = 1.0f;
+float targetTemperature = 25.0f;
+float ventTemp = 35.0f;
+int w1maxWaterSensorVal = 1800;
+bool vpdMode = true;
+
 //pinout
 int dehumidifierControlPin = 14;
 int humidifierControlPin = 13;
@@ -69,16 +77,14 @@ int neopixelPin = 19;
 //environ vals
 float temp = -1;
 float humidity = -1;
-float targetHumidity = 60;  //Sensible default
-float targetTemperature = 25.0f;
-float ventTemp = 35.0f;
+
 uint16_t co2 = -1;
 float tvoc = 0;
 float upperHumidityBound = 60.0f;
 float lowerHumidityBound = 40.0f;
-float targetVpd = 1.0f;
+
 char sensorjson[420];   //This is limited by mqtt buffer size
-int w1maxWaterSensorVal = 1800;
+
 
 Buffer humidityBuffer;
 Buffer tempBuffer;

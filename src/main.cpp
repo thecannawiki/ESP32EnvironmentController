@@ -21,12 +21,9 @@ Hardware support and default pins
 #include <NVM.h>
 #include <peripherals.h>
 #include <string>
-#ifdef BME
-  #include <bme.h>
-#endif
-#ifdef SCD4
-  #include <scd4.h>
-#endif
+#include <bme.h>
+#include <scd4.h>
+
 
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
@@ -140,6 +137,7 @@ void UpdateSensorJson(){
   doc["w1"] = waterSensor1State;
   doc["H"] = int(heaterState); //heater
   doc["w1T"] = w1maxWaterSensorVal;
+  doc["VPDMode"] = int(vpdMode);
 
   //doc["primaryHumid"] = dehumidifierPrimaryMode;
   // dtostrf(lowerHumidityBound, 5, 4, trimmedfloat);
@@ -157,8 +155,6 @@ void initNonVolitileMem(){
   fanPower = preferences.getFloat("fanPower", 0.0f);
   dehumidiferState = preferences.getBool("dehumidifier", dehumidiferState);
   autoHeater = preferences.getBool("autoHeater", autoHeater);
-  lowerHumidityBound = preferences.getFloat("lowerBound", 40.0f);
-  upperHumidityBound = preferences.getFloat("upperBound", 60.0f);
   P = preferences.getFloat("P", 0.4f);
   I = preferences.getFloat("I", 0.3f);
   D = preferences.getFloat("D", 3.0f);
@@ -168,12 +164,14 @@ void initNonVolitileMem(){
   dehumidifierForTemp = preferences.getBool("dehumidAutoTemp", dehumidifierForTemp);
   targetVpd = preferences.getFloat("tvpd", 1.0f);
   targetTemperature = preferences.getFloat("ttemp", targetTemperature);
+  targetHumidity = preferences.getFloat("targetHumidity", targetHumidity);
   heaterState = preferences.getBool("headerState", false);
   softMaxFan = preferences.getFloat("softMaxFan", 100.0f);
   softMinFan = preferences.getFloat("softMinFan", 0.0f);
   heaterTempMode = preferences.getFloat("HFT", heaterTempMode);
   humidifierState = preferences.getBool("humidifier", false);
   automaticHumidifier= preferences.getBool("AHU", true);
+  vpdMode = preferences.getBool("VpdMode", true);
   UpdateSensorJson();
   Serial.println("retrieved from NVM: ");
   Serial.println(sensorjson);
@@ -815,9 +813,12 @@ void mainloop(void * parameter){
       if(successful_read){
         /// TODO check the value diffs. Throw out latest val if the diff is too big
         sensorReadFailCount = 0;
-        targetHumidity = calcTargetHumidityForVpd(targetVpd, temp);
-        upperHumidityBound = targetHumidity + 0.5f;
-        lowerHumidityBound = targetHumidity - 0.5f;
+        if(vpdMode){
+          targetHumidity = calcTargetHumidityForVpd(targetVpd, temp);
+        } else {
+          targetVpd = calcVpd(temp, targetHumidity);
+        }
+
         Serial.print("±RH ");
         Serial.print("fan ");
         Serial.println(fanPower);

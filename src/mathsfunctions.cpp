@@ -18,7 +18,6 @@ float calcTargetHumidityForVpd(float targetVpd, float temp){     //returns the h
 }
 
 
-
 float calcVpd(float temp, float humidity){    //Calc vpd from air temp humidity
 
   float svp = calcSvp(temp);  

@@ -1,5 +1,6 @@
 # ESP32EnvironmentController
 An environment (Temperature, humidity, Co2) controller for ESP32
+![Controller Hardware](https://github.com/user-attachments/assets/e39c38da-6922-4b1f-8d71-250d5abab631)
 
 ![Node-red interface](https://github.com/user-attachments/assets/01f73acd-4df4-4e7e-9391-60e350c5a6d6)
 

@@ -1,2 +1,2 @@
-bool initSensors();
-bool getSensorReadings();
+bool initBmeSgp();
+bool readBmeSgp();

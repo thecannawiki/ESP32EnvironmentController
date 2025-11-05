@@ -1,5 +1,8 @@
 #include "Arduino.h"
 #include <EEPROM.h>            // read and write from flash memory
+#ifdef HTTP_DELETE
+#undef HTTP_DELETE
+#endif
 #include <ESPAsyncWebServer.h>
 #include "esp_task_wdt.h"      //to feed the task watchdog
 #include <vector>
@@ -19,6 +22,7 @@
 #include <SensirionI2CScd4x.h>
 #include <SparkFunBME280.h> //edit this library to change the i2c address if bme is not found
 #include <SparkFun_SGP30_Arduino_Library.h>
+#include "globals.h"
 
 SensirionI2CScd4x scd4x;
 bool SCD40Mounted = false;
@@ -26,7 +30,7 @@ BME280 bme280;
 SGP30 sgp30;
 bool bmeMounted = false;
 bool sgpMounted = false;
-
+Sensor sensorPref = SCD4;
 
 
 //global vals
@@ -63,6 +67,10 @@ float targetTemperature = 25.0f;
 float ventTemp = 35.0f;
 int w1maxWaterSensorVal = 1800;
 bool vpdMode = true;
+bool setupMode = false;
+char deviceName[40] = "";
+char MQTTPUBLISHTOPIC[50] = "";
+char MQTTCONTROLTOPIC[50] = "";
 
 //pinout
 int dehumidifierControlPin = 14;
@@ -70,9 +78,10 @@ int humidifierControlPin = 13;
 int fanControlPin = 12;
 int pumpControlPin = 33;
 int waterSensor1Pin= 34;
-int waterSensor2Pin= 4;
+// int waterSensor2Pin= 4;
 int heaterControlPin = 27;
 int neopixelPin = 19;
+int setupModePin = 23;
 
 //environ vals
 float temp = -1;
@@ -82,8 +91,7 @@ uint16_t co2 = -1;
 float tvoc = 0;
 float upperHumidityBound = 60.0f;
 float lowerHumidityBound = 40.0f;
-
-char sensorjson[420];   //This is limited by mqtt buffer size
+char sensorjson[SENSORJSON_SIZE];
 
 
 Buffer humidityBuffer;

@@ -1,10 +1,8 @@
 #include <globals.h>
 
 void setPixelColor(uint32_t color){
-  if(LED){
-    pixels.setPixelColor(0, color);
-    pixels.show();
-  }
+  pixels.setPixelColor(0, color);
+  pixels.show();
 }
 
 void rbgloop(void * parameter){

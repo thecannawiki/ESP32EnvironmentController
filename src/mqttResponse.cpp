@@ -58,6 +58,24 @@ const void handleFan(const String &message)
   }
 }
 
+const void handleWaterThresh(const String &message){
+  int num = message.toInt();
+  if (num < 0 || num > 4045)
+  {
+    return;
+  }
+
+  w1maxWaterSensorVal = num;
+  preferences.putInt("w1Max", w1maxWaterSensorVal);
+  saveToNVM();
+
+  Serial.println(w1maxWaterSensorVal);
+
+  char data[60];
+  snprintf_P(data, sizeof(data), PSTR("{\"w1T\":%d}"), w1maxWaterSensorVal);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+}
+
 const void handlePumpTimer(const String &message)
 {
   int num = message.toInt();
@@ -481,84 +499,94 @@ const void handleAutoControlMode(const String &message){
 /////
 
 /////// define function key (2/4)
-const std::string humidifierStateTopicName = (MQTTCONTROLTOPIC + std::string{"/humidifier"}).data();
-const std::string fanPowerTopicName = (MQTTCONTROLTOPIC + std::string{"/exhaust"}).data();
-const std::string setHeaterTopicName = (MQTTCONTROLTOPIC + std::string{"/heater"}).data();
-const std::string tempTargetTopicName = (MQTTCONTROLTOPIC + std::string{"/heater/target"}).data();
-const std::string heaterForTempTopicName = (MQTTCONTROLTOPIC + std::string{"/heater/tempMode"}).data();
-const std::string heaterPowerTopicName = (MQTTCONTROLTOPIC + std::string{"/heater/power"}).data();
-const std::string fanSoftMax = (MQTTCONTROLTOPIC + std::string{"/exhaust/softMax"}).data();
-const std::string fanSoftMin = (MQTTCONTROLTOPIC + std::string{"/exhaust/softMin"}).data();
-const std::string transpirationMeasurement = (MQTTCONTROLTOPIC + std::string{"/transTest"}).data();
-const std::string dehumidiferToggle = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/toggle"}).data();
-const std::string dehumidiferAuto = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/auto"}).data();
-const std::string dehumidiferPrimary = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/primary"}).data();
-const std::string dehumidiferForTempEndpoint = (MQTTCONTROLTOPIC + std::string{"/dehumidifier/autoTemp"}).data();
-const std::string fanAutoVpd = (MQTTCONTROLTOPIC + std::string{"/exhaust/autoVpd"}).data();
-const std::string setTargetVpd = (MQTTCONTROLTOPIC + std::string{"/targetVpd"}).data();
-const std::string setP = (MQTTCONTROLTOPIC + std::string{"/P"}).data();
-const std::string setI = (MQTTCONTROLTOPIC + std::string{"/I"}).data();
-const std::string setD = (MQTTCONTROLTOPIC + std::string{"/D"}).data();
-const std::string pumpTimerTopicName = (MQTTCONTROLTOPIC + std::string{"/pump"}).data();
-const std::string controlModeTopicName = (MQTTCONTROLTOPIC + std::string{"/auto/mode"}).data();
-const std::string handleTargetHumidityTopicName = (MQTTCONTROLTOPIC + std::string{"/targetRH"}).data();
+const std::string humidifierStateTopicName = "/humidifier";
+const std::string fanPowerTopicName = "/exhaust";
+const std::string setHeaterTopicName = "/heater";
+const std::string tempTargetTopicName = "/heater/target";
+const std::string heaterForTempTopicName = "/heater/tempMode";
+const std::string heaterPowerTopicName = "/heater/power";
+const std::string fanSoftMax = "/exhaust/softMax";
+const std::string fanSoftMin ="/exhaust/softMin";
+const std::string transpirationMeasurement = "/transTest";
+const std::string dehumidiferToggle = "/dehumidifier/toggle";
+const std::string dehumidiferAuto = "/dehumidifier/auto";
+const std::string dehumidiferPrimary = "/dehumidifier/primary";
+const std::string dehumidiferForTempEndpoint = "/dehumidifier/autoTemp";
+const std::string fanAutoVpd = "/exhaust/autoVpd";
+const std::string setTargetVpd = "/targetVpd";
+const std::string setP = "/P";
+const std::string setI = "/I";
+const std::string setD ="/D";
+const std::string pumpTimerTopicName = "/pump";
+const std::string w1ThreshTopicName ="/w1T";
+const std::string controlModeTopicName = "/auto/mode";
+const std::string handleTargetHumidityTopicName = "/targetRH";
 
 //////////
 
 /// @brief  (3/4)
-void mqttSubscribeTopics()
+void mqttSubscribeTopics(std::string MQTTCONTROLTOPIC)
 {
-  mqttclient.subscribe(humidifierStateTopicName.data());
-  mqttclient.subscribe(dehumidiferAuto.data());
-  mqttclient.subscribe(fanAutoVpd.data());
-  mqttclient.subscribe(fanSoftMax.data());
-  mqttclient.subscribe(fanSoftMin.data());
-  mqttclient.subscribe(dehumidiferPrimary.data());
-  mqttclient.subscribe(dehumidiferForTempEndpoint.data());
-  mqttclient.subscribe(dehumidiferToggle.data());
-  mqttclient.subscribe(fanPowerTopicName.data());
-  mqttclient.subscribe(transpirationMeasurement.data());
-  mqttclient.subscribe(setTargetVpd.data());
-  mqttclient.subscribe(setP.data());
-  mqttclient.subscribe(setI.data());
-  mqttclient.subscribe(setD.data());
-  mqttclient.subscribe(setHeaterTopicName.data());
-  mqttclient.subscribe(tempTargetTopicName.data());
-  mqttclient.subscribe(heaterForTempTopicName.data());
-  mqttclient.subscribe(pumpTimerTopicName.data());
-  mqttclient.subscribe(heaterPowerTopicName.data());
-  mqttclient.subscribe(controlModeTopicName.data());
-  mqttclient.subscribe(handleTargetHumidityTopicName.data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + humidifierStateTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + dehumidiferAuto).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + fanAutoVpd).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + fanSoftMax).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + fanSoftMin).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + dehumidiferPrimary).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + dehumidiferForTempEndpoint).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + dehumidiferToggle).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + fanPowerTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + transpirationMeasurement).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + setTargetVpd).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + setP).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + setI).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + setD).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + setHeaterTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + tempTargetTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + heaterForTempTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + pumpTimerTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + heaterPowerTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + controlModeTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + handleTargetHumidityTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + w1ThreshTopicName).data());
 }
 
 void mqttHandle(char *topic, String message)
 {
-  ////Add to map here (4/4) #TODO maybe this can be defined at compile time?
-  functionDict[humidifierStateTopicName] = handleHumidifier;
-  functionDict[fanPowerTopicName] = handleFan;
-  functionDict[transpirationMeasurement] = handleTranspirationMeasurement;
-  functionDict[dehumidiferAuto] = handleSetDehumidifierAuto;
-  functionDict[dehumidiferPrimary] = handleSetDehumidPrimaryMode;
-  functionDict[fanAutoVpd] = handleSetFanAutoVpd;
-  functionDict[fanSoftMax] = handleSoftMaxFan;
-  functionDict[fanSoftMin] = handleSoftMinFan;
-  functionDict[dehumidiferToggle] = toggleDehumidifier;
-  functionDict[setTargetVpd] = handleTargetVpd;
-  functionDict[setP] = handleSetP;
-  functionDict[setI] = handleSetI;
-  functionDict[setD] = handleSetD;
-  functionDict[dehumidiferForTempEndpoint] = handleSetDehumidifierForTemp;
-  functionDict[setHeaterTopicName] = handlesetHeater;
-  functionDict[pumpTimerTopicName] = handlePumpTimer;
-  functionDict[heaterPowerTopicName] = handleHeaterPower;
-  functionDict[tempTargetTopicName] = handleTargetTemp;
-  functionDict[heaterForTempTopicName] = handleHeaterForTemp;
-  functionDict[controlModeTopicName] = handleAutoControlMode;
-  functionDict[handleTargetHumidityTopicName] = handleTargetHumidity;
+  String topicStr = String(topic);
+  const String prefix = MQTTCONTROLTOPIC;
+
+  // Remove the common prefix once
+  if (topicStr.startsWith(prefix)) {
+      topicStr.remove(0, prefix.length()); // subtract prefix
+  }
+  ////Add to map here (4/4) 
+  functionDict[humidifierStateTopicName.c_str()] = handleHumidifier;
+  functionDict[fanPowerTopicName.c_str()] = handleFan;
+  functionDict[transpirationMeasurement.c_str()] = handleTranspirationMeasurement;
+  functionDict[dehumidiferAuto.c_str()] = handleSetDehumidifierAuto;
+  functionDict[dehumidiferPrimary.c_str()] = handleSetDehumidPrimaryMode;
+  functionDict[fanAutoVpd.c_str()] = handleSetFanAutoVpd;
+  functionDict[fanSoftMax.c_str()] = handleSoftMaxFan;
+  functionDict[fanSoftMin.c_str()] = handleSoftMinFan;
+  functionDict[dehumidiferToggle.c_str()] = toggleDehumidifier;
+  functionDict[setTargetVpd.c_str()] = handleTargetVpd;
+  functionDict[setP.c_str()] = handleSetP;
+  functionDict[setI.c_str()] = handleSetI;
+  functionDict[setD.c_str()] = handleSetD;
+  functionDict[dehumidiferForTempEndpoint.c_str()] = handleSetDehumidifierForTemp;
+  functionDict[setHeaterTopicName.c_str()] = handlesetHeater;
+  functionDict[pumpTimerTopicName.c_str()] = handlePumpTimer;
+  functionDict[heaterPowerTopicName.c_str()] = handleHeaterPower;
+  functionDict[tempTargetTopicName.c_str()] = handleTargetTemp;
+  functionDict[heaterForTempTopicName.c_str()] = handleHeaterForTemp;
+  functionDict[controlModeTopicName.c_str()] = handleAutoControlMode;
+  functionDict[handleTargetHumidityTopicName.c_str()] = handleTargetHumidity;
+  functionDict[w1ThreshTopicName.c_str()] = handleWaterThresh;
 
   // Call the corresponding function based on the input
-  std::string topicName = topic;
-  auto it = functionDict.find(topicName);
+  // std::string topicName = topic;
+  auto it = functionDict.find(topicStr.c_str());
   if (it != functionDict.end())
   {
     // Function found in the dictionary, call it
@@ -567,7 +595,6 @@ void mqttHandle(char *topic, String message)
   }
   else
   {
-    // Function not found
-    Serial.println("Invalid function name!\n");
+    Serial.println("Handler function not found!\n");
   }
 }

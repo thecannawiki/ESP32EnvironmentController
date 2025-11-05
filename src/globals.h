@@ -21,16 +21,21 @@
 #include <SparkFunBME280.h> //edit this library to change the i2c address if bme is not found
 #include <SparkFun_SGP30_Arduino_Library.h>
 
+#ifndef GLOBALS_H
+#define GLOBALS_H
+
+enum Sensor {BM280_SGP30, SCD4};
+
 extern SensirionI2CScd4x scd4x;
 extern bool SCD40Mounted;
 extern BME280 bme280;
 extern SGP30 sgp30;
 extern bool bmeMounted;
 extern bool sgpMounted;
+extern Sensor sensorPref;
 //global vals
 //hardware
 
-enum Sensor {BM280_SGP30, SCD4};
 
 extern bool dehumidiferState;
 extern bool humidifierState;
@@ -55,6 +60,10 @@ extern bool lockHVAC;    //prevents changes to any HVAC equiptment
 
 //settings
 extern bool vpdMode;
+extern bool setupMode;
+extern char deviceName[40];
+extern char MQTTPUBLISHTOPIC[50];
+extern char MQTTCONTROLTOPIC[50];
 
 
 //pinout
@@ -70,7 +79,8 @@ extern unsigned long heaterStart;
 extern unsigned long heaterEnd;
 extern int neopixelPin;
 extern int waterSensor1Pin;
-extern int waterSensor2Pin;
+// extern int waterSensor2Pin;
+extern int setupModePin;
 
 //environ vals
 extern float temp;
@@ -83,7 +93,8 @@ extern float tvoc;
 extern float upperHumidityBound;
 extern float lowerHumidityBound;
 extern float targetVpd;
-extern char sensorjson[240];   //There is a max size u can send to MQTT broker
+constexpr size_t SENSORJSON_SIZE = 420; //There is a max size u can send to MQTT broker
+extern char sensorjson[SENSORJSON_SIZE];  
 extern int w1maxWaterSensorVal;
 
 extern Buffer humidityBuffer;
@@ -119,7 +130,8 @@ extern int resolution;
 extern int maxPWMval;
 extern bool fanChanged;
 extern float fanSoftMaxPWM;
-extern bool heaterSoftMaxPWM;
+extern float heaterSoftMaxPWM;
+
 
 //global objects
 extern WiFiMulti wifiMulti;
@@ -140,3 +152,6 @@ extern Preferences preferences;
 extern int loopCounter;
 extern bool setupReceived;
 extern int transTestTime;
+
+
+#endif

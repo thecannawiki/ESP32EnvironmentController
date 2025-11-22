@@ -527,6 +527,7 @@ const std::string handleTargetHumidityTopicName = "/targetRH";
 /// @brief  (3/4)
 void mqttSubscribeTopics(std::string MQTTCONTROLTOPIC)
 {
+  mqttclient.subscribe("help");
   mqttclient.subscribe((MQTTCONTROLTOPIC + humidifierStateTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + dehumidiferAuto).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + fanAutoVpd).data());

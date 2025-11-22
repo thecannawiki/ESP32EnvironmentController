@@ -11,7 +11,6 @@ Hardware support and default pins
   SCL                  pin22
 
 *********/
-
 #include <WiFiManager.h>
 #include <globals.h>
 #include <homepage.h>
@@ -88,8 +87,8 @@ void i2cScan(){
   Serial.println("Scanning...");
 
   int nDevices = 0;
-  for (address = 1; address < 127; address++ )
-  {
+  for (address = 1; address < 127; address++ ){
+
     // The i2c_scanner uses the return value of
     // the Write.endTransmisstion to see if
     // a device did acknowledge to the address.
@@ -360,23 +359,6 @@ void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-100
   powerVal = map(powerVal, 0, 1000, 0, fanSoftMaxPWM);
 
 
-  // if(percentVal < minpercentvalue){
-  //   Serial.println("long pwm task");
-  //     ///let the pwm loop task handle the fan
-  //   xTaskCreate(
-  //   longPWMloop,      // Function that should be called
-  //   "longPWM",        // Name of the task (for debugging)
-  //   1000,             // Stack size (bytes)
-  //   (void *) powerVal,// Parameter to pass
-  //   3,                // Task priority
-  //   &longPWMTaskHandle);       // Task handle 
-  //   //Serial.print("made new fan task. fan value ");
-  //   //Serial.println(powerVal);
-  // }
-
-  // Serial.print("Power val");
-  // Serial.println(powerVal);
-
   int moveSize = 200;
   float fanDiff = powerVal - lastPowerVal;
 
@@ -476,7 +458,6 @@ void mqttreconnect() {    //TODO check mqtt stuff is defined
       logln("mqttconnect", "mqtt url:" ,MQTTURL,"mqtt username:", MQTTUSER, "mqtt port:",MQTTPORT);
       errcount++;
     }
-  
     
     if(errcount>5){
       break;
@@ -500,7 +481,6 @@ void mqttPublishSensorData(){ //TODO check if mqtt in creds
       ESP.restart();
     }
   }
-  
 }
 
 void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
@@ -512,11 +492,7 @@ void mqttMessageReceived(char* topic, byte* message, unsigned int length) {
     messageTemp += (char)message[i];
   }
 
-  Serial.print("got mqtt ");
-  Serial.print(topic);
-  Serial.print(" | ");
-  Serial.println(messageTemp);
-
+  logln("got mqtt ", topic, " | ", messageTemp);
   mqttHandle(topic, messageTemp);
 }
 
@@ -548,9 +524,8 @@ void operateDehumidifierOnFanUsage(){
 }
 
 void operateHumidifier(){
-  float humidityError = humidity - targetHumidity; 
-  Serial.print("hu operation [<-0.5 ON, >0 OFF]");
-  Serial.println(humidityError);
+  float humidityError = humidity - targetHumidity;
+  logln("hu");
   if(humidityError <= -0.5f && humidifierState == false){
     setHumidifierState(true);
     return;
@@ -644,9 +619,7 @@ void fanPID(){
       //P
       float Pfan = P * humidityError;
       
-      Serial.print("P = ");
-      Serial.print(Pfan);
-      Serial.println("");
+      logln("P = ", Pfan);
       
       //D
       float Dfan = calcDfan();
@@ -897,8 +870,6 @@ void mainloop(void * parameter){
       restoreHumid = false;
     }
     
-
-
     if(loopCounter%5 == 0){
       updateWaterSensors();
       checkPump();
@@ -909,11 +880,8 @@ void mainloop(void * parameter){
       bool gotSense = checkSensors();
       if(!gotSense){
         logln("No sensor found");
-      }
-      else {
-
+      } else {
         bool successful_read = getSensorReadings();
-        
         if(successful_read){
           /// TODO check the value diffs. Throw out latest val if the diff is too big
           sensorReadFailCount = 0;
@@ -959,6 +927,7 @@ void mainloop(void * parameter){
             }
           }
         } else {   //sensor read failed
+          initSensors();
           sensorReadFailCount +=1;
           if(sensorReadFailCount >10){
             Serial.println("Sensor read failed >10 times in a row :/");
@@ -1027,11 +996,9 @@ void mqttLoop(void * parameter){ //Keeps the mqtt client connected and receives/
     } else {
       vTaskDelay(5000); // wait for main thread to reconnect us
     }
-    vTaskDelay(1000);
+    vTaskDelay(800);
   }
 }
-
-
 
 
 
@@ -1056,8 +1023,6 @@ void setup() {
   logln("Device name:", deviceName);
   heaterState = false;                  //safety 👍
   
-
-
   i2cScan();
   //sensors
   initSensors();
@@ -1084,15 +1049,14 @@ void setup() {
   if (digitalRead(setupModePin) == LOW){
     setupMode = true;
   }
+
   WiFiManager wm;
-  
   if(setupMode || deviceName == "" || MQTTURL == "" || MQTTPASS == "" || MQTTUSER == "" || MQTTPORT == ""){
     if(LedAnimationTaskHandle != NULL){
       vTaskDelete(LedAnimationTaskHandle);
     }
     logln("In setup mode");
     setPixelColor(pixels.Color(224, 206, 0));  //yellow
-
     
     wm.addParameter(&custom_deviceName);
     wm.addParameter(&custom_mqtturl);
@@ -1177,10 +1141,10 @@ void setup() {
   digitalWrite(humidifierControlPin, humidifierState ? HIGH : LOW);
   updateFanPower();
 
+  refreshNetworkTime();
+
   xTaskCreate(mqttLoop, "mqttHandler", 4000, 0, 1, &mqttTaskHandle);
   xTaskCreate(mainloop, "main", 90000, 0, 0, &mainLoopTaskHandle);
-
-  refreshNetworkTime();
 }
 
 

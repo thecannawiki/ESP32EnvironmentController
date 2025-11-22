@@ -1,5 +1,6 @@
 #include <globals.h>
 #include <buffer.h>
+#include <Wire.h>
 
 int sensorReadCount = 0;
 
@@ -7,14 +8,14 @@ int sensorReadCount = 0;
 bool initBmeSgp(){
     bme280.setI2CAddress(0x76);
 
-    if(bme280.beginI2C()){
+    if(bme280.beginI2C(Wire)){
         bmeMounted = true;
     } else {
         Serial.println("bme280 not found"); 
         bmeMounted = false;
         //i2cScan();
     }
-    if(sgp30.begin()){
+    if(sgp30.begin(Wire)){
         sgpMounted = true;
         sgp30.initAirQuality();
         Serial.println("sgp30 found");
@@ -31,12 +32,12 @@ bool readBmeSgp(){
 //CO2: 400 ppm  TVOC: 0 ppb as it warms up
     bool success=false;
     if(!bmeMounted){
-        if(bme280.beginI2C()){
+        if(bme280.beginI2C(Wire)){
             bmeMounted = true;
         } 
     }
     if(!sgpMounted){
-        if(sgp30.begin()){
+        if(sgp30.begin(Wire)){
             sgpMounted = true;
             sgp30.initAirQuality();
         }
@@ -81,4 +82,3 @@ bool readBmeSgp(){
 
     return success;
 }
-

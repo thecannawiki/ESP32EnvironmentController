@@ -9,7 +9,6 @@ BufferStatus Buffer::write(float byte) {
 }
 
 void Buffer::printData() const {
-    Serial.println("");
     for (int i = 0; i < BUFFER_SIZE; ++i) {
         Serial.print(data[i]);
         Serial.print(" ");

@@ -3,7 +3,7 @@
 #ifdef HTTP_DELETE
 #undef HTTP_DELETE
 #endif
-#include <ESPAsyncWebServer.h>
+// #include <ESPAsyncWebServer.h>
 #include "esp_task_wdt.h"      //to feed the task watchdog
 #include <vector>
 #include <algorithm>
@@ -13,12 +13,10 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <PubSubClient.h>
-#include <WiFiClientSecure.h>
 #include <Adafruit_NeoPixel.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include <buffer.h>
-
 #include <SensirionI2CScd4x.h>
 #include <SparkFunBME280.h> //edit this library to change the i2c address if bme is not found
 #include <SparkFun_SGP30_Arduino_Library.h>
@@ -66,6 +64,7 @@ float targetVpd = 1.0f;
 float targetTemperature = 25.0f;
 float ventTemp = 35.0f;
 int w1maxWaterSensorVal = 1800;
+int w2maxWaterSensorVal = 1800;
 bool vpdMode = true;
 bool setupMode = false;
 char deviceName[40] = "";
@@ -73,7 +72,8 @@ char MQTTPUBLISHTOPIC[50] = "";
 char MQTTCONTROLTOPIC[50] = "";
 
 //pinout
-int dehumidifierControlPin = 14;
+int dehumidifierControlPin = 34;
+int touchWaterSensor = 14;
 int humidifierControlPin = 13;
 int fanControlPin = 12;
 int pumpControlPin = 33;
@@ -98,6 +98,7 @@ Buffer humidityBuffer;
 Buffer tempBuffer;
 Buffer errorBuffer;
 Buffer w1Buffer;
+Buffer w2Buffer;
 Buffer fanBuffer;
 
 
@@ -132,7 +133,7 @@ float heaterSoftMaxPWM = (MAXHEATEROUTPUT / 100.0) * maxPWMval;
 
 //global objects
 WiFiMulti wifiMulti;
-AsyncWebServer server(80);
+// AsyncWebServer server(80);
 Adafruit_NeoPixel pixels(1, neopixelPin, NEO_GRB + NEO_KHZ800);
 
 TaskHandle_t longPWMTaskHandle = NULL;

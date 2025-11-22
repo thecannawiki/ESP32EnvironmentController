@@ -7,12 +7,18 @@ Hardware support and default pins
   * 1 magnetic stirrer pin26
   * 1 neopixel         pin19
   I2C connections
-  SDA                  pin21 
+  SDA                  pin21
   SCL                  pin22
 
 *********/
-#include <WiFiManager.h>
+#include <stdio.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <driver/gpio.h>
+#include "sdkconfig.h"
+#include <Arduino.h>
 #include <globals.h>
+#include <WiFiManager.h>
 #include <homepage.h>
 #include <mathsfunctions.h>
 #include <led.h>
@@ -27,10 +33,14 @@ Hardware support and default pins
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
 
-int sensorMountFailCount = 0;
+extern "C" {
+  #include "driver/touch_pad.h"
+}
+
 int sensorReadFailCount = 0;
 int mqttPublishFailCount = 0;
 int wifiConnectFailCount = 0;
+int consecutiveMqttConnectFailCount =0;
 
 int PIDLookback = 12; //number of samples to look back on for PID 
 
@@ -68,79 +78,9 @@ void logln(T first, Args... rest) {
     logln(rest...);
 }
 
-//Functions for debug
-void scanForWifi(){
-  Serial.print(F("wifi Scan start ... "));
-  int n = WiFi.scanNetworks();
-  Serial.print(n);
-  Serial.println(" network(s) found");
-  for (int i = 0; i < n; i++)
-  {
-    Serial.println(WiFi.SSID(i));
-    Serial.println(WiFi.RSSI(i));
-  }
-  Serial.println();
-}
-
-void i2cScan(){
-  byte error, address; //variable for error and I2C address
-  Serial.println("Scanning...");
-
-  int nDevices = 0;
-  for (address = 1; address < 127; address++ ){
-
-    // The i2c_scanner uses the return value of
-    // the Write.endTransmisstion to see if
-    // a device did acknowledge to the address.
-    Wire.beginTransmission(address);
-    error = Wire.endTransmission();
-
-    if (error == 0){
-      Serial.print("I2C device found at address 0x");
-      if (address < 16)
-        Serial.print("0");
-      Serial.print(address, HEX);
-      Serial.println("  !");
-
-      switch(address){
-        case 118:
-          bmeMounted = true;
-          Serial.println("bme280 found");
-          break;
-        case 98:
-          SCD40Mounted = true;
-          Serial.println("scd40 found");
-          break;
-      }
-
-      nDevices++;
-    }
-    else if (error == 4)
-    {
-      Serial.print("Unknown error at address 0x");
-      if (address < 16)
-        Serial.print("0");
-      Serial.println(address, HEX);
-    }
-  }
-  if (nDevices == 0){
-    Serial.println("No I2C devices found\n");
-  } else {
-    Serial.println("done\n");
-    if(SCD40Mounted){
-      sensorPref = SCD4;
-      logln("Sensor set to SCD40");
-      return;
-    }
-    if(bmeMounted){
-      sensorPref = BM280_SGP30;
-      logln("Sensor set to BME280");
-    }
-  }
-}
-
 
 void saveWifiManagerCustomCredentials(){
+  //TODO trim these user inputs!!
   const char* deviceStr = custom_deviceName.getValue();
   if(strlen(deviceStr) > 0){
     strcpy(deviceName, deviceStr);
@@ -171,7 +111,6 @@ void saveWifiManagerCustomCredentials(){
     preferences.putString("mqttPort", mqttPort);
   }
 
-
 }
 
 bool refreshNetworkTime(){
@@ -187,11 +126,13 @@ void UpdateSensorJson(){
   StaticJsonDocument<420> doc;  
   char trimmedfloat[10];
   
-  dtostrf(temp, 5, 3, trimmedfloat);  
-  doc["T"] = atof(trimmedfloat);
-  
-  dtostrf(humidity, 5, 3, trimmedfloat); 
-  doc["RH"] = atof(trimmedfloat);
+  if(temp != 0.0f && tempBuffer.avgOfLastN(10) != 0.0f){ // First read on the scd40 can be 0
+    dtostrf(temp, 5, 3, trimmedfloat);  
+    doc["T"] = atof(trimmedfloat);
+    
+    dtostrf(humidity, 5, 3, trimmedfloat); 
+    doc["RH"] = atof(trimmedfloat);
+  }
   
   if(co2 != 65535){doc["co2"] = co2;}   // 65535 is the co2 value from the SCD-40 when its still warming up
 
@@ -218,17 +159,16 @@ void UpdateSensorJson(){
   doc["ADHU"] = int(automaticDehumidifier);  //auto dehumidifier
   doc["AHU"] = int(automaticHumidifier);  //auto dehumidifier
   doc["w1"] = waterSensor1State;
+  doc["w2"] = waterSensor2State;
   doc["H"] = int(heaterState); //heater
   doc["w1T"] = w1maxWaterSensorVal;
+  doc["w2T"] = w2maxWaterSensorVal;
   doc["VPDMode"] = int(vpdMode);
-
-  //doc["primaryHumid"] = dehumidifierPrimaryMode;
-  // dtostrf(lowerHumidityBound, 5, 4, trimmedfloat);
-  // doc["lowerBound"] = trimmedfloat;
-  // dtostrf(upperHumidityBound, 5, 4, trimmedfloat);
-  // doc["upperBound"] = trimmedfloat;
-  
   doc["ram"] = ESP.getFreeHeap();
+  doc["LFB"] = heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT);
+  Serial.printf("Largest free block: %u bytes\n", heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
+
+
   serializeJson(doc, sensorjson);
 }
 
@@ -256,6 +196,7 @@ void initNonVolitileMem(){
   automaticHumidifier= preferences.getBool("AHU", true);
   vpdMode = preferences.getBool("VpdMode", true);
   w1maxWaterSensorVal = preferences.getInt("w1Max", 1800);
+  w2maxWaterSensorVal = preferences.getInt("w2Max", 1800);
   setupMode = preferences.getBool("setupMode", false);
   strncpy(deviceName, preferences.getString("deviceName", "").c_str(), sizeof(deviceName));
   deviceName[sizeof(deviceName) - 1] = '\0';  // ensure null-terminated 
@@ -272,48 +213,48 @@ void initNonVolitileMem(){
 
 
 //Handlers for web requests
-void getSensorReadingsWeb(AsyncWebServerRequest *request){
-  UpdateSensorJson();
-  request->send_P(200, "application/json", sensorjson);
-}
+// void getSensorReadingsWeb(AsyncWebServerRequest *request){
+//   UpdateSensorJson();
+//   request->send_P(200, "application/json", sensorjson);
+// }
 
 
-void setUpperbound(AsyncWebServerRequest *request){
-  int paramsNr = request->params();
-  for(int i=0;i<paramsNr;i++){
-    const AsyncWebParameter* p = request->getParam(i);
-    String paramName = p->name();
-    String paramValue = p->value();
-    if(paramName=="int" && paramValue.toInt()!=0){
-      Serial.println("setting upper bound to");
-      Serial.println(paramValue);
-      upperHumidityBound = paramValue.toFloat();
-      request->send(200, "text/plain", "upperBound set");
-    } else {
-      Serial.println("cast failed or int param not found");
-      request->send(400, "cast failed or int param not found");
-    }
-  }
-}
+// void setUpperbound(AsyncWebServerRequest *request){
+//   int paramsNr = request->params();
+//   for(int i=0;i<paramsNr;i++){
+//     const AsyncWebParameter* p = request->getParam(i);
+//     String paramName = p->name();
+//     String paramValue = p->value();
+//     if(paramName=="int" && paramValue.toInt()!=0){
+//       Serial.println("setting upper bound to");
+//       Serial.println(paramValue);
+//       upperHumidityBound = paramValue.toFloat();
+//       request->send(200, "text/plain", "upperBound set");
+//     } else {
+//       Serial.println("cast failed or int param not found");
+//       request->send(400, "cast failed or int param not found");
+//     }
+//   }
+// }
 
-void setLowerbound(AsyncWebServerRequest *request){
-  int paramsNr = request->params();
-  for(int i=0;i<paramsNr;i++){
-    const AsyncWebParameter* p = request->getParam(i);
-    String paramName = p->name();
-    String paramValue = p->value();
-    if(paramName=="int" && paramValue.toInt()!=0){
-      Serial.println("setting lower bound to");
-      Serial.println(paramValue);
-      lowerHumidityBound = paramValue.toFloat();
-      Serial.println(lowerHumidityBound);
-      request->send(200, "text/plain", "lowerBound set");
-    } else {
-      Serial.println("cast failed or int param not found");
-      request->send(400, "cast failed or int param not found");
-    }
-  }
-}
+// void setLowerbound(AsyncWebServerRequest *request){
+//   int paramsNr = request->params();
+//   for(int i=0;i<paramsNr;i++){
+//     const AsyncWebParameter* p = request->getParam(i);
+//     String paramName = p->name();
+//     String paramValue = p->value();
+//     if(paramName=="int" && paramValue.toInt()!=0){
+//       Serial.println("setting lower bound to");
+//       Serial.println(paramValue);
+//       lowerHumidityBound = paramValue.toFloat();
+//       Serial.println(lowerHumidityBound);
+//       request->send(200, "text/plain", "lowerBound set");
+//     } else {
+//       Serial.println("cast failed or int param not found");
+//       request->send(400, "cast failed or int param not found");
+//     }
+//   }
+// }
 
 
 
@@ -413,38 +354,36 @@ void freezeWatchdog(void * parameter){
 }
 
 void reconnectWifi(){
-  try{
-    wifiMulti.run();
-    int waitCount = 0;
-    Serial.println("");
-    Serial.print("Connecting wifi");
-    while (WiFi.status() != WL_CONNECTED){
-      Serial.print(".");
-      delay(2000);
-      waitCount++;
-      if(waitCount > 10){
-        Serial.print("");
-        break;
-      }
+  wifiMulti.run();
+  int waitCount = 0;
+  Serial.println("");
+  Serial.print("Connecting wifi");
+  while (WiFi.status() != WL_CONNECTED){
+    Serial.print(".");
+    delay(2000);
+    waitCount++;
+    if(waitCount > 10){
+      Serial.print("");
+      break;
     }
-  } catch (std::exception& e) {
-      Serial.println("wifi exception");
   }
 }
 
-// TODO test this function with the exception handling? Is it better??!
+
 void mqttreconnect() {    //TODO check mqtt stuff is defined
   if(WiFi.status() != WL_CONNECTED){
-    Serial.println(F("can't reconnect mqtt. No Wifi connection"));
+    logln("can't reconnect mqtt. No Wifi connection");
     return;
   }
   int errcount = 0;
   // Loop until we're reconnected.. If we loop forever here the watchdog will restart
   while (!mqttclient.connected()) {
+    espClient.stop();
     Serial.println("Attempting MQTT connection...");
     
     bool connectSuccess = mqttclient.connect(WiFi.macAddress().c_str(), MQTTUSER.c_str(), MQTTPASS.c_str());
     if (connectSuccess) {
+      consecutiveMqttConnectFailCount = 0;
       Serial.println("connected");
       // Subscribe
       std::string controlTopic;
@@ -452,17 +391,25 @@ void mqttreconnect() {    //TODO check mqtt stuff is defined
       mqttSubscribeTopics(controlTopic);
     }
     else {
-      Serial.print("failed, mqtt client state=");
-      Serial.println(mqttclient.state());
-      Serial.println("will try again");
-      logln("mqttconnect", "mqtt url:" ,MQTTURL,"mqtt username:", MQTTUSER, "mqtt port:",MQTTPORT);
-      errcount++;
+        int errstate = mqttclient.state();
+        logln("failed, mqtt client state=", errstate,"will try again");
+        if(errstate==5){
+            logln("Check credentials");
+        }
+        logln("mqttconnect", "mqtt url:",MQTTURL,"mqtt username:", MQTTUSER,"pass:",MQTTPASS, "mqtt port:",MQTTPORT);
+        errcount++;
+        consecutiveMqttConnectFailCount ++;
+    }
+
+    if(consecutiveMqttConnectFailCount> 10){
+      logln("Too many fails getting mqtt connection.. restarting");
+      ESP.restart();
     }
     
-    if(errcount>5){
+    if(errcount>1){
       break;
     }
-    delay(100);
+    vTaskDelay(100);
   }
 }
 
@@ -473,6 +420,7 @@ void mqttPublishSensorData(){ //TODO check if mqtt in creds
   if(success){
     mqttPublishFailCount = 0;
     Serial.print("-> ");
+    espClient.stop();
   } else {
     mqttPublishFailCount +=1;
     Serial.print("MQTT send failed with"); Serial.println(sensorjson);
@@ -685,69 +633,6 @@ void operateHeaterOnBounds(){
 }
 
 
-bool checkSensors(){
-
-  if(sensorPref == SCD4){
-    if(!SCD40Mounted){
-      bool ok = initSensors();
-      if(!ok){
-        sensorMountFailCount +=1;
-      } else {
-        sensorMountFailCount = 0;
-      }
-      return ok;
-    } else {
-      return true;
-    }
-
-  } else if (sensorPref == BM280_SGP30)
-  {
-    if(!bmeMounted){
-      bool ok = initSensors();
-      if(!ok){
-        sensorMountFailCount +=1;
-      } else {
-        sensorMountFailCount = 0;
-      }
-      return ok;
-    } else {
-      return true;
-    }
-  }
-  
- 
-
-  if(sensorMountFailCount >= 8){
-    Serial.println("Failed to connect sensors >4 times in a row. SAFETY MODE");
-    setHeaterState(false);
-    i2cScan();
-    temp = -1;
-    humidity = -1;
-    fanPower = 30;
-    fanChanged = true;
-  }
-
-
-  float num = 0;
-  int dupecount = 0;
-  for(int i=1; i<5; i++){
-    int index = (humidityBuffer.newest_index - i + BUFFER_SIZE) % BUFFER_SIZE;
-    float c  = humidityBuffer.data[index];
-    if(c == num){
-        dupecount++;
-    }
-    num = c;
-  }
-
-  if(dupecount > 4){
-    setHeaterState(false);
-    Serial.println("reinit sensors");
-    initSensors();
-  }
-
-  return false;
-}
-
 void serialLog(const char str[], bool newLine){
   Serial.println("");
   Serial.print(timeinfo.tm_hour);
@@ -779,12 +664,10 @@ void checkHeater(){
   }
   time(&timeNow);
 
-
   if(timeNow >= heaterEnd){
     heaterEnd = 0;
     setHeaterState(false);
   }
-
 }
 
 void checkPump(){
@@ -796,7 +679,7 @@ void checkPump(){
   
   time(&timeNow);
 
-  if(waterSensor1State > w1maxWaterSensorVal){
+  if(waterSensor1State >= w1maxWaterSensorVal || waterSensor2State >= w2maxWaterSensorVal){
     pumpEnd = 0;
     pumpState = false;
     digitalWrite(pumpControlPin, LOW);
@@ -825,6 +708,14 @@ void updateWaterSensors(){
 
   serialLog("water sensor 1: ", false);
   Serial.println(waterSensor1State);
+
+  w2Buffer.write(100 - touchRead(touchWaterSensor));
+  waterSensor2State = w2Buffer.avgOfLastN(8);
+  Serial.print("Touch vals: ");
+  w2Buffer.printData();
+  Serial.println("");
+  logln(w2Buffer.avgOfLastN(1));
+  Serial.println("");
 }
 
 void interactiveSetupTask(void * parameter){
@@ -837,8 +728,13 @@ void interactiveSetupTask(void * parameter){
 void mainloop(void * parameter){
   vTaskDelay(1000);   //yield some time to other tasks
   int sensorTime = 5; //num of loop iterations between sensor reading/PID. Every x loops
+  unsigned long interval = 1000;   // 1 second
+
+    mqttreconnect();
+  mqttclient.publish(MQTTPUBLISHTOPIC, "hi");
 
   while(true){
+    unsigned long start = millis();      // when the loop started
 
     if(lockHVAC && dehumidiferState){   //turn off dehumidifer when HVAC is locked (this is now a sideffect of the variable state!)
       setDehumidifierState(false);
@@ -871,6 +767,7 @@ void mainloop(void * parameter){
       updateWaterSensors();
       checkPump();
       // checkHeater();
+      Serial.printf("Main Stack high watermark: %u\n", uxTaskGetStackHighWaterMark(NULL));
     }
     
     if(loopCounter%sensorTime == 0){
@@ -924,18 +821,17 @@ void mainloop(void * parameter){
             }
           }
         } else {   //sensor read failed
-          initSensors();
           sensorReadFailCount +=1;
           if(sensorReadFailCount >10){
             Serial.println("Sensor read failed >10 times in a row :/");
-            if(!initSensors()){
-              Serial.println("Reinit failed :/ Restarting esp");
-              ///setting reasonable fan value
-              setHeaterState(false);
-              preferences.putFloat("fanPower", 40);
-              saveToNVM();
-              ESP.restart();
-            }
+           
+            Serial.println("Restarting esp");
+            ///setting reasonable fan value
+            setHeaterState(false);
+            preferences.putFloat("fanPower", 40);
+            saveToNVM();
+            ESP.restart();
+           
           }
         }
       }
@@ -943,11 +839,8 @@ void mainloop(void * parameter){
 
     if(loopCounter%10 == 0){  //Publish data
       if(WiFi.status() == WL_CONNECTED ){
-        if(mqttclient.connected()){
-          mqttPublishSensorData();
-        } else {
-          mqttreconnect();
-        }
+        mqttreconnect();
+        mqttPublishSensorData();
       } else {
         Serial.print("reconnecting wifi");
         bool success = WiFi.reconnect();
@@ -975,7 +868,11 @@ void mainloop(void * parameter){
       Serial.print(" ");
     }
 
-    vTaskDelay(1000);
+
+    unsigned long elapsed = millis() - start;
+    if (elapsed < interval) {
+        vTaskDelay(interval - elapsed);
+    }
     loopCounter++;    //changing this value resets the freezewatchdog
     if(loopCounter > 100){
       loopCounter = 0;
@@ -993,13 +890,13 @@ void mqttLoop(void * parameter){ //Keeps the mqtt client connected and receives/
     } else {
       vTaskDelay(5000); // wait for main thread to reconnect us
     }
-    vTaskDelay(1000);
+    vTaskDelay(500);
   }
 }
 
 
-
 void setup() {
+  esp_log_level_set("mbedtls", ESP_LOG_VERBOSE);
   // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector 
   Serial.begin(115200);
   while (!Serial) { delay(300); } // Wait for serial console to open!
@@ -1008,7 +905,6 @@ void setup() {
   Wire.begin(21, 22, 50000);  // 100 kHz
   //Wire.setClock(10000);
   
-
   pixels.begin();
   pixels.setBrightness(30);
   startLedanimation(rbgloop);
@@ -1041,6 +937,14 @@ void setup() {
 
   pinMode(humidifierControlPin, OUTPUT);
 
+  touch_pad_init();
+  touch_pad_set_voltage(
+    TOUCH_HVOLT_2V7,
+    TOUCH_LVOLT_0V5,
+    TOUCH_HVOLT_ATTEN_1V
+  );
+  touch_pad_config(TOUCH_PAD_NUM6, 0);
+
   // check if setup pin is high
   pinMode(setupModePin, INPUT_PULLUP);
   if (digitalRead(setupModePin) == LOW){
@@ -1048,7 +952,7 @@ void setup() {
   }
 
   WiFiManager wm;
-  if(setupMode || deviceName == "" || MQTTURL == "" || MQTTPASS == "" || MQTTUSER == "" || MQTTPORT == ""){
+  if(setupMode || deviceName[0] == '\0' || MQTTURL[0] == '\0' || MQTTPASS[0] == '\0' || MQTTUSER[0] == '\0' || MQTTPORT[0] == '\0'){
     if(LedAnimationTaskHandle != NULL){
       vTaskDelete(LedAnimationTaskHandle);
     }
@@ -1072,7 +976,6 @@ void setup() {
 
   snprintf(MQTTPUBLISHTOPIC, sizeof(MQTTPUBLISHTOPIC), "%s/environ", deviceName);
   snprintf(MQTTCONTROLTOPIC, sizeof(MQTTCONTROLTOPIC), "%s/control", deviceName);
-  
   logln("mqttpublishtopic", MQTTPUBLISHTOPIC );
   logln("mqttcontroltopic", MQTTCONTROLTOPIC );
   
@@ -1109,7 +1012,6 @@ void setup() {
   }
 
 
-
   //Setup MQTT TODO check MQTT info is defined in creds
   logln("MQTT URL ", MQTTURL);
   Serial.print("MQTT PORT ");
@@ -1118,19 +1020,19 @@ void setup() {
   mqttclient.setBufferSize(512);
   mqttclient.setServer(MQTTURL.c_str(), MQTTPORT.toInt());
   mqttclient.setCallback(mqttMessageReceived);
-  mqttreconnect();
-  mqttclient.publish(MQTTPUBLISHTOPIC, "hi");
+
+//   mqttclient.publish(MQTTPUBLISHTOPIC, "hi");
   vTaskDelete(LedAnimationTaskHandle);
   setPixelColor(pixels.Color(0,0,0));
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
  
   //http endpoints
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/html", start_html);
-  });
-  server.on("/environ", getSensorReadingsWeb);
-  server.begin();
+//   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+//     request->send_P(200, "text/html", start_html);
+//   });
+//   server.on("/environ", getSensorReadingsWeb);
+//   server.begin();
 
   flash3green();
 
@@ -1140,10 +1042,14 @@ void setup() {
 
   refreshNetworkTime();
 
-  xTaskCreate(mqttLoop, "mqttHandler", 4000, 0, 1, &mqttTaskHandle);
-  xTaskCreate(mainloop, "main", 90000, 0, 0, &mainLoopTaskHandle);
 }
 
-
-//not used
-void loop(){}
+extern "C" void app_main()
+{
+    // initialize arduino library before we start the tasks
+    initArduino();
+    setup();
+    
+    xTaskCreate(mqttLoop, "mqttHandler", 4000, 0, 1, &mqttTaskHandle);
+    xTaskCreate(mainloop, "main", 24*1024, NULL, 5, NULL);
+}

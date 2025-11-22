@@ -55,24 +55,25 @@ bool readScd40(){   //This can be done every 5 seconds
             float hufailval = humidityBuffer.data[prevIndex];
             humidityBuffer.write(hufailval);
 
-            prevIndex =  (tempBuffer.newest_index - 1 + BUFFER_SIZE) % BUFFER_SIZE;
+            prevIndex = (tempBuffer.newest_index - 1 + BUFFER_SIZE) % BUFFER_SIZE;
             float tempfailval = tempBuffer.data[prevIndex];
             
             tempBuffer.write(tempfailval);
-
-            initScd40();
 
         } else {
             success = true;
             humidityBuffer.write(hu);  
             tempBuffer.write(t);
         }
-        
-        
-        humidityBuffer.printData();
 
+        humidityBuffer.printData();
         humidity = humidityBuffer.avgOfLastN(2);
         temp = tempBuffer.avgOfLastN(2);
+
+        
+        if(t == 0.0f && tempBuffer.avgOfLastN(8) == 0.0f){ // First read on the scd40 can be 0
+            return false;
+        }
 
         return success;
     }

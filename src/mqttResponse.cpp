@@ -76,6 +76,24 @@ const void handleWaterThresh(const String &message){
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
+const void handleWater2Thresh(const String &message){
+  int num = message.toInt();
+  if (num < 0 || num > 4045)
+  {
+    return;
+  }
+
+  w2maxWaterSensorVal = num;
+  preferences.putInt("w2Max", w2maxWaterSensorVal);
+  saveToNVM();
+
+  Serial.println(w2maxWaterSensorVal);
+
+  char data[60];
+  snprintf_P(data, sizeof(data), PSTR("{\"w2T\":%d}"), w2maxWaterSensorVal);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+}
+
 const void handlePumpTimer(const String &message)
 {
   int num = message.toInt();
@@ -95,9 +113,9 @@ const void handlePumpTimer(const String &message)
     return;
   }
 
-  if (waterSensor1State > w1maxWaterSensorVal)
+  if (waterSensor1State >= w1maxWaterSensorVal || waterSensor2State >= w2maxWaterSensorVal)
   {
-    Serial.println("Water sensor 1 detects water! pump disabled");
+    Serial.println("Water sensor(s) detects water! pump disabled");
     char data[60];
     snprintf_P(data, sizeof(data), PSTR("{\"pump_time_active\":%f,\"early_stop\":%d}"), 0.0f, bool(true));
     mqttclient.publish(MQTTPUBLISHTOPIC, data);
@@ -194,11 +212,14 @@ void transpirationTestTask(void *message)
   for (int i = 0; i < time; i++)
   {
     vTaskDelay(1000);
-    Serial.println("");
-    Serial.print("transpiration test ongoing:");
-    Serial.print(i);
-    Serial.print("/");
-    Serial.println(time);
+
+    if(i % 10 == 0){
+      Serial.println("");
+      Serial.print("transpiration test ongoing:");
+      Serial.print(i);
+      Serial.print("/");
+      Serial.println(time);
+    }
   }
   lockHVAC = false;
   Serial.println("Test complete");
@@ -237,7 +258,7 @@ const void handleTranspirationMeasurement(const String &message)
     xTaskCreate(
         transpirationTestTask, // Function that should be called
         "transTest",           // Name of the task (for debugging)
-        1886,                  // Stack size (bytes)
+        2048,                  // Stack size (bytes)
         0,                     // Parameter to pass
         3,                     // Task priority
         &TransTestTaskHandle); // Task handle
@@ -287,7 +308,7 @@ const void handleHeaterPower(const String &message)
     // preferences.putFloat("=", targetTemperature);
     // saveToNVM();
     char data[60];
-    snprintf_P(data, sizeof(data), PSTR("{\"heaterPower\":%f}"), heaterPower);
+    snprintf_P(data, sizeof(data), PSTR("{\"heaterPower\":%d}"), heaterPower);
     mqttclient.publish(MQTTPUBLISHTOPIC, data);
     setHeaterState(heaterState); // update heater hardware
   }
@@ -519,6 +540,7 @@ const std::string setI = "/I";
 const std::string setD ="/D";
 const std::string pumpTimerTopicName = "/pump";
 const std::string w1ThreshTopicName ="/w1T";
+const std::string w2ThreshTopicName ="/w2T";
 const std::string controlModeTopicName = "/auto/mode";
 const std::string handleTargetHumidityTopicName = "/targetRH";
 
@@ -549,6 +571,7 @@ void mqttSubscribeTopics(std::string MQTTCONTROLTOPIC)
   mqttclient.subscribe((MQTTCONTROLTOPIC + controlModeTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + handleTargetHumidityTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + w1ThreshTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + w2ThreshTopicName).data());
 }
 
 void mqttHandle(char *topic, String message)
@@ -583,6 +606,7 @@ void mqttHandle(char *topic, String message)
   functionDict[controlModeTopicName.c_str()] = handleAutoControlMode;
   functionDict[handleTargetHumidityTopicName.c_str()] = handleTargetHumidity;
   functionDict[w1ThreshTopicName.c_str()] = handleWaterThresh;
+  functionDict[w2ThreshTopicName.c_str()] = handleWater2Thresh;
 
   // Call the corresponding function based on the input
   // std::string topicName = topic;

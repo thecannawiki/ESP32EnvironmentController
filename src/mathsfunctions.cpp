@@ -39,54 +39,30 @@ float calcGramsOfWaterInAir(float temp, float humidity){    /// grams of water p
 
   Serial.println("temp");
   Serial.println(temp);
-
   Serial.println("humidity");
   Serial.println(humidity);
 
-  float svp = calcSvp(temp);  
-  Serial.println("svp");
-  Serial.println(svp);
-
-  // double pascalToAtmMultiplier = 0.00000986923;
-  float vp = humidity * svp * 100; //vapour pressure = humidity * saturation vapour pressure
-
-
-  Serial.println("vp");
-  Serial.println(vp);
   // float mols = (vp * volume) / (0.0821 * temp + 273); //rearranged ideal gas equation n= PV/RT
 
   // float massOfWater = mols * 18; //mols * molar mass of water
-  // float massOfWater = mols * 18; //mols * molar mass of water
 
   //AH = (RH × P)/(461.5 J/(kg⋅K) × T × 100)
-  float massOfWater = (humidity * svp) /(461.5 * temp+273.15 * 100);
+  // float massOfWater = (humidity * svp) /(461.5 * temp+273.15 * 100);
   // Serial.print("mass 1 ");
   // Serial.println(massOfWater);
 
-
-
   // double sp = 6.112 * pow(EULER, (17.67 * temp)/(temp+243.5));
-  double P = svp * (humidity / 100);
-  float mols = P / (8.2 * temp);
+  // double P = svp * (humidity / 100);
+  // float mols = P / (8.2 * temp);
 
-  float massOfWater2 = mols * 18.02;
+  // float massOfWater2 = mols * 18.02;
 
-  float massOfWater3 = humidity * 6.112 * 2.1674 * pow(EULER, ((temp* 17.67)/(temp+243.5))/(temp+273.15));
+  // float massOfWater3 = humidity * 6.112 * 2.1674 * pow(EULER, ((temp* 17.67)/(temp+243.5))/(temp+273.15));
+
+  ///Absolute humidity notes
+  //https://carnotcycle.wordpress.com/2012/08/04/how-to-convert-relative-humidity-to-absolute-humidity/
 
   double massOfWater4 = calculationAbsHum(temp, humidity);  // https://github.com/finitespace/BME280/issues/25
-
-
-  //Calculating AH. Also try this one
-  //http://www.noveldevices.co.uk/rp-about-humidity
-
-   Serial.print("mass 1 ");
-  Serial.println(massOfWater);
-
-   Serial.print("mass 2 ");
-  Serial.println(massOfWater2);
-   Serial.print("mass 3 ");
-  Serial.println(massOfWater3);
-
 
 
   Serial.print("mass 4 current");
@@ -96,6 +72,3 @@ float calcGramsOfWaterInAir(float temp, float humidity){    /// grams of water p
 }
 
 
-
-///Absolute humidity notes
-//https://carnotcycle.wordpress.com/2012/08/04/how-to-convert-relative-humidity-to-absolute-humidity/

@@ -1,7 +1,7 @@
 
 #include "Arduino.h"
 #include <EEPROM.h>            // read and write from flash memory
-#include <ESPAsyncWebServer.h>
+// #include <ESPAsyncWebServer.h>
 #include "esp_task_wdt.h"      //to feed the task watchdog
 #include <vector>
 #include <algorithm>
@@ -70,6 +70,7 @@ extern char MQTTCONTROLTOPIC[50];
 extern int dehumidifierControlPin;
 extern int humidifierControlPin;
 extern int fanControlPin;
+extern int touchWaterSensor;
 extern int pumpControlPin;
 extern int heaterControlPin;
 extern int stirrerControlPin;
@@ -96,11 +97,13 @@ extern float targetVpd;
 constexpr size_t SENSORJSON_SIZE = 420; //There is a max size u can send to MQTT broker
 extern char sensorjson[SENSORJSON_SIZE];  
 extern int w1maxWaterSensorVal;
+extern int w2maxWaterSensorVal;
 
 extern Buffer humidityBuffer;
 extern Buffer tempBuffer;
 extern Buffer errorBuffer;
 extern Buffer w1Buffer;
+extern Buffer w2Buffer;
 extern Buffer fanBuffer;
 
 
@@ -135,7 +138,7 @@ extern float heaterSoftMaxPWM;
 
 //global objects
 extern WiFiMulti wifiMulti;
-extern AsyncWebServer server;
+// extern AsyncWebServer server;
 extern Adafruit_NeoPixel pixels;
 
 extern TaskHandle_t longPWMTaskHandle;

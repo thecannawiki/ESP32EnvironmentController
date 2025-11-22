@@ -3,3 +3,5 @@ float calcTargetHumidityForVpd(float targetVpd, float temp);    //returns the hu
 float calcVpd(float temp, float humidity);
 
 float calcGramsOfWaterInAir(float temp, float humidity);
+
+float calculationAbsHum(float temp, float humidity);

@@ -7,7 +7,7 @@ Hardware support and default pins
   * 1 magnetic stirrer pin26
   * 1 neopixel         pin19
   I2C connections
-  SDA                  pin21
+  SDA                  pin21 
   SCL                  pin22
 
 *********/
@@ -127,10 +127,10 @@ void UpdateSensorJson(){
   char trimmedfloat[10];
   
   if(temp != 0.0f && tempBuffer.avgOfLastN(10) != 0.0f){ // First read on the scd40 can be 0
-    dtostrf(temp, 5, 3, trimmedfloat);  
+    dtostrf(temp, 5, 3, trimmedfloat);
     doc["T"] = atof(trimmedfloat);
-    
-    dtostrf(humidity, 5, 3, trimmedfloat); 
+
+    dtostrf(humidity, 5, 3, trimmedfloat);
     doc["RH"] = atof(trimmedfloat);
   }
   
@@ -824,14 +824,14 @@ void mainloop(void * parameter){
           sensorReadFailCount +=1;
           if(sensorReadFailCount >10){
             Serial.println("Sensor read failed >10 times in a row :/");
-           
+
             Serial.println("Restarting esp");
             ///setting reasonable fan value
             setHeaterState(false);
             preferences.putFloat("fanPower", 40);
             saveToNVM();
             ESP.restart();
-           
+
           }
         }
       }
@@ -890,21 +890,21 @@ void mqttLoop(void * parameter){ //Keeps the mqtt client connected and receives/
     } else {
       vTaskDelay(5000); // wait for main thread to reconnect us
     }
-    vTaskDelay(500);
+    vTaskDelay(1000);
   }
 }
 
 
 void setup() {
   esp_log_level_set("mbedtls", ESP_LOG_VERBOSE);
-  // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector 
+  // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
   Serial.begin(115200);
   while (!Serial) { delay(300); } // Wait for serial console to open!
   delay(1000);
   // Wire.begin();
   Wire.begin(21, 22, 50000);  // 100 kHz
   //Wire.setClock(10000);
-  
+
   pixels.begin();
   pixels.setBrightness(30);
   startLedanimation(rbgloop);
@@ -1049,7 +1049,7 @@ extern "C" void app_main()
     // initialize arduino library before we start the tasks
     initArduino();
     setup();
-    
+
     xTaskCreate(mqttLoop, "mqttHandler", 4000, 0, 1, &mqttTaskHandle);
     xTaskCreate(mainloop, "main", 24*1024, NULL, 5, NULL);
 }

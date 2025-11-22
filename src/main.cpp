@@ -420,7 +420,6 @@ void mqttPublishSensorData(){ //TODO check if mqtt in creds
   if(success){
     mqttPublishFailCount = 0;
     Serial.print("-> ");
-    espClient.stop();
   } else {
     mqttPublishFailCount +=1;
     Serial.print("MQTT send failed with"); Serial.println(sensorjson);

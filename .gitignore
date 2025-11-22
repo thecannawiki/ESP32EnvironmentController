@@ -3,9 +3,6 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
-src/Credentials.h
-
-src/Credentials.h
-src/Credentials.h
 /Hardware/main_board/main_board-backups
 /Hardware/nursery_board/nursery_board-backups
+/build

@@ -51,7 +51,7 @@ def main():
 
 def save_capture(before, after):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    filename = f"reset_capture_{timestamp}.log"
+    filename = f"reset_captures/reset_capture_{timestamp}.log"
 
     with open(filename, "w") as f:
         f.write("=== PRECEDING LINES ===\n")

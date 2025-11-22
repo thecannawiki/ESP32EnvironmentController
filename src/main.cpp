@@ -889,7 +889,7 @@ void mqttLoop(void * parameter){ //Keeps the mqtt client connected and receives/
     } else {
       vTaskDelay(5000); // wait for main thread to reconnect us
     }
-    vTaskDelay(1000);
+    vTaskDelay(800);
   }
 }
 
@@ -980,16 +980,8 @@ void setup() {
   
   xTaskCreate(freezeWatchdog, "watchdog", 1000, 0, 0, &freezewatchdogTaskHandle);
 
-
   espClient.setInsecure();
-  // espClient.setBufferSizes(4096, 4096); // smaller if needed
-  //Connect wifi
   Serial.println("starting WIFI..");
-  // wifiMulti.addAP(SSIDNAME, WIFIPASS);    //Add additional networks here
-  // uint8_t isWifi = wifiMulti.run();
-  // Serial.println(isWifi);
-  // Serial.println(WiFi.status());
-
   if(!wm.autoConnect()){  //if there is an available network, wait for connection
     int connectLoopCount = 0;
     while (WiFi.status() != WL_CONNECTED) {
@@ -1011,7 +1003,6 @@ void setup() {
   }
 
 
-  //Setup MQTT TODO check MQTT info is defined in creds
   logln("MQTT URL ", MQTTURL);
   Serial.print("MQTT PORT ");
   Serial.println(MQTTPORT);
@@ -1020,18 +1011,18 @@ void setup() {
   mqttclient.setServer(MQTTURL.c_str(), MQTTPORT.toInt());
   mqttclient.setCallback(mqttMessageReceived);
 
-//   mqttclient.publish(MQTTPUBLISHTOPIC, "hi");
   vTaskDelete(LedAnimationTaskHandle);
   setPixelColor(pixels.Color(0,0,0));
 
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
- 
+  
+  //TODO restore webserver functionality
   //http endpoints
-//   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-//     request->send_P(200, "text/html", start_html);
-//   });
-//   server.on("/environ", getSensorReadingsWeb);
-//   server.begin();
+  //   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+  //     request->send_P(200, "text/html", start_html);
+  //   });
+  //   server.on("/environ", getSensorReadingsWeb);
+  //   server.begin();
 
   flash3green();
 

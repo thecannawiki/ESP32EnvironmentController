@@ -993,7 +993,7 @@ void mqttLoop(void * parameter){ //Keeps the mqtt client connected and receives/
     } else {
       vTaskDelay(5000); // wait for main thread to reconnect us
     }
-    vTaskDelay(1000);
+    vTaskDelay(800);
   }
 }
 

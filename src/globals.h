@@ -45,7 +45,8 @@ extern bool automaticFanVpd;
 extern bool dehumidifierPrimaryMode;
 extern bool dehumidifierForTemp;
 extern bool heaterState;
-extern int heaterPower;
+extern int heaterMaxPower;
+extern float heaterPower;
 extern bool heaterTempMode;
 extern bool autoHeater;
 extern int waterSensor1State;
@@ -99,18 +100,22 @@ extern char sensorjson[SENSORJSON_SIZE];
 extern int w1maxWaterSensorVal;
 extern int w2maxWaterSensorVal;
 
-extern Buffer humidityBuffer;
-extern Buffer tempBuffer;
-extern Buffer errorBuffer;
-extern Buffer w1Buffer;
-extern Buffer w2Buffer;
-extern Buffer fanBuffer;
+extern Buffer<64> humidityBuffer;
+extern Buffer<64> tempBuffer;
+extern Buffer<64> errorBuffer;
+extern Buffer<64> w1Buffer;
+extern Buffer<64> w2Buffer;
+extern Buffer<500> fanBuffer;
+extern Buffer<500> heaterStateBuffer;
 
 
 //PID
 extern float P;
 extern float I;
 extern float D;
+
+extern float HP;
+extern float HD;
 
 //time
 extern const char* ntpServer;

@@ -64,6 +64,9 @@ WiFiManagerParameter custom_mqttuser("mqttuser", "MQTT username", mqttUsername, 
 WiFiManagerParameter custom_mqttpass("mqttpass", "MQTT pass", mqttPass, 40);
 WiFiManagerParameter custom_mqttport("mqttport", "MQTT port", mqttPort, 6);
 
+uint64_t startupMillis = 0;
+static const uint64_t MAX_UPTIME_MS = 48ULL * 60ULL * 60ULL * 1000ULL; // 48 hours
+
 // Base case: one argument left
 template<typename T>
 void logln(T last) {
@@ -161,13 +164,14 @@ void UpdateSensorJson(){
   doc["w1"] = waterSensor1State;
   doc["w2"] = waterSensor2State;
   doc["H"] = int(heaterState); //heater
+  dtostrf(heaterPower, 4, 2, trimmedfloat);
+  doc["HP"] = atof(trimmedfloat);
   doc["w1T"] = w1maxWaterSensorVal;
   doc["w2T"] = w2maxWaterSensorVal;
   doc["VPDMode"] = int(vpdMode);
   doc["ram"] = ESP.getFreeHeap();
   doc["LFB"] = heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT);
-  Serial.printf("Largest free block: %u bytes\n", heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
-
+  // Serial.printf("Largest free block: %u bytes\n", heap_caps_get_largest_free_block(MALLOC_CAP_DEFAULT));
 
   serializeJson(doc, sensorjson);
 }
@@ -198,6 +202,7 @@ void initNonVolitileMem(){
   w1maxWaterSensorVal = preferences.getInt("w1Max", 1800);
   w2maxWaterSensorVal = preferences.getInt("w2Max", 1800);
   setupMode = preferences.getBool("setupMode", false);
+  heaterMaxPower = preferences.getInt("heaterMaxPower", heaterMaxPower);
   strncpy(deviceName, preferences.getString("deviceName", "").c_str(), sizeof(deviceName));
   deviceName[sizeof(deviceName) - 1] = '\0';  // ensure null-terminated 
   MQTTURL = preferences.getString("mqttUrl", "");
@@ -288,9 +293,11 @@ void kickFan(){
 }
 
 void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-1000 by multiplying by 10
-
+  if(heaterState && fanPower >15){
+    fanPower = 15;
+  }
+  
   int powerVal  = fanPower * 10;    // 0-1000
-
   if(powerVal>1000){powerVal = 1000;}
   if(powerVal<0){powerVal = 0;}
 
@@ -324,7 +331,7 @@ void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-100
   Serial.print("prev fan value ");
   Serial.print(fanBuffer.avgOfLastN(1));
   Serial.print(" ");
-  if(fanBuffer.avgOfLastN(1) <= 1 && fanPower > 1){
+  if(fanBuffer.avgOfLastN(1) <= 4 && fanPower > 4){
     kickFan();
   }
 
@@ -334,7 +341,6 @@ void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-100
   saveToNVM();
   Serial.println("fan updated");
   lastPowerVal = powerVal;
-  fanBuffer.write(fanPower);
   //esp_task_wdt_reset();
 }
 
@@ -369,8 +375,7 @@ void reconnectWifi(){
   }
 }
 
-
-void mqttreconnect() {    //TODO check mqtt stuff is defined
+void mqttreconnect() {
   if(WiFi.status() != WL_CONNECTED){
     logln("can't reconnect mqtt. No Wifi connection");
     return;
@@ -414,7 +419,7 @@ void mqttreconnect() {    //TODO check mqtt stuff is defined
 }
 
 
-void mqttPublishSensorData(){ //TODO check if mqtt in creds
+void mqttPublishSensorData(){
   UpdateSensorJson();
   bool success = mqttclient.publish(MQTTPUBLISHTOPIC, sensorjson, false);
   if(success){
@@ -472,14 +477,35 @@ void operateDehumidifierOnFanUsage(){
 
 void operateHumidifier(){
   float humidityError = humidity - targetHumidity;
-  logln("hu");
-  if(humidityError <= -0.5f && humidifierState == false){
-    setHumidifierState(true);
+  float dir = humidityBuffer.PID_D_Diff(12);
+  logln("hu", dir);
+
+  // Too wet!
+  if(humidityError > 2.5f){
+    setHumidifierState(false);
     return;
   }
-  if(humidityError >=0.0f && humidifierState == true){
-    setHumidifierState(false);
+
+  // sensor buffer not warmed up yet
+  if(dir == 0.0f){
+    return;
   }
+
+
+  if(humidifierState){
+
+    if(humidityError >= 0.0f && dir >=1.0f){
+        setHumidifierState(false);
+    }
+
+  } else {
+    if(humidityError <= -5.0f || (humidityError <= 0.0f && dir <=-1.0f)){
+        setHumidifierState(true);
+    }
+
+
+  }
+  
 }
 
 void operateDehumidifierOnTempBounds(){
@@ -499,10 +525,10 @@ float calcDfan(){
   int lookback_index = humidityBuffer.newest_index-lookback_length;
   int cindex = humidityBuffer.newest_index-1;
   if(lookback_index < 0){
-    lookback_index = BUFFER_SIZE + lookback_index;
+    lookback_index = humidityBuffer.size() + lookback_index;
   }
   if(cindex < 0){
-    cindex = BUFFER_SIZE + cindex;
+    cindex = humidityBuffer.size() + cindex;
   }
   float old = humidityBuffer.data[lookback_index];
   float current = humidityBuffer.data[cindex];
@@ -535,7 +561,7 @@ float calcIfan(){
   for(int i=1; i<lookback; i++){
     int cindex = errorBuffer.newest_index-i;
     if(cindex < 0){
-      cindex = BUFFER_SIZE + cindex;
+      cindex = errorBuffer.size() + cindex;
     }
     
     float c = errorBuffer.data[cindex];
@@ -553,6 +579,23 @@ float calcIfan(){
   return Ifan; 
 }
 
+void heaterPID(){
+  float humidityError = humidity - targetHumidity;
+  //P
+  float Pterm = HP * humidityError;
+  float Dterm = PIDDTerm(8) * HD;
+
+  float newP = heaterPower + Pterm + Dterm;
+  
+  if(newP <=0){newP = 0.0f;}
+  if(newP >=100){newP = 100;}
+  if(newP > heaterMaxPower){ newP = heaterMaxPower;}
+  if(abs(newP - heaterPower) > 0.0f){
+    heaterPower = newP;
+    updateHeaterPower();
+    logln("new heater:", newP);
+  }
+}
 
 void fanPID(){
       float humidityError = humidity - targetHumidity;
@@ -592,24 +635,77 @@ void ventOnHighTemp(){  //safety feature 👍
       logln("Venting due to high temp! (Over", ventTemp, "degrees)");
       fanPower=softMaxFan;
       fanChanged=true;
+      setHeaterState(false);
     }
   }
 } 
 
+bool fanStruggle(){
+  int lookback = 500;
+  bool fanStruggle = false;
+  int votes = 0;
+  for(int i=1; i<=lookback; i++){
+    int index = (fanBuffer.newest_index - i + fanBuffer.size()) % fanBuffer.size();
+    float val  = fanBuffer.data[index];
+    if(val == softMaxFan){
+      votes = votes + 1;
+    }
+  }
+  logln("fan struggle votes", votes);
+  if(votes == lookback){
+    fanStruggle = true;
+  }
+
+  return fanStruggle;
+}
+
+bool heaterOnFor(int lookback){ // Heater was on for entire lookback time?
+  int votes = 0;
+  for(int i=1; i<=lookback; i++){
+    int index = (heaterStateBuffer.newest_index - i + heaterStateBuffer.size()) % heaterStateBuffer.size();
+    float val  = heaterStateBuffer.data[index];
+    if(val == 0){break;}
+    votes = votes + val;
+  }
+  logln("heater on for last", votes, "secs");
+  if(votes == lookback){
+    return true;
+  }
+  return false;
+}
+
 void operateHeater(){
   float humidityError = humidity - targetHumidity;  
-  if(temp==-1 || tempBuffer.avgOfLastN(3) >= ventTemp //safety feature 👍
-    || (tempBuffer.avgOfLastN(3) >= targetTemperature) ||  humidityError < 0.0f ){ //always care if we are push humidity too dry
+
+  if(heaterState){
+    
+    // float tempDirection = PIDDiff(tempBuffer,24); //24 * 5 = 120
+    float tempDirection = tempBuffer.PID_D_Diff(24);
+    bool heaterOn = heaterOnFor(120);
+    Serial.print("temp diff");
+    Serial.println(tempDirection, 6);
+    if(heaterOn && tempDirection < -0.01f && errorBuffer.avgOfLastN(3) > 2.5f){
+      logln("Disabling heater. Temp not rising and not in target range");
+      setHeaterState(false);
+      return;
+    }
+  }
+
+  /// Run this anyway just for the rare chance that heaterState does not match hardware state
+  if(temp==-1 || (tempBuffer.avgOfLastN(3) >= targetTemperature) ||  humidityError < -2.0f ){ //always care if we are push humidity too dry
     setHeaterState(false);
     return;
   } 
 
-  if((!heaterTempMode && humidityError >= 2.5f) || (!heaterTempMode && fanPower >= 0.5f * softMaxFan) || (heaterTempMode && tempBuffer.avgOfLastN(5) < targetTemperature)){
-    setHeaterState(true);
-    if(fanPower > 15){
-      fanPower = 15;
+
+  if(!heaterState){
+    if((!heaterTempMode && fanStruggle() && errorBuffer.avgOfLastN(3) > 2) || (heaterTempMode && tempBuffer.avgOfLastN(5) < targetTemperature)){
+      setHeaterState(true);
+      if(fanPower > 0){
+        fanPower = 0;
+      }
+      fanChanged = true;
     }
-    fanChanged = true;
   }
 }
 
@@ -644,7 +740,6 @@ void serialLog(const char str[], bool newLine){
   } else {
     Serial.print(str);
   }
-
 }
 
 void send_water_added(time_t now, bool early_stop){
@@ -710,11 +805,11 @@ void updateWaterSensors(){
 
   w2Buffer.write(100 - touchRead(touchWaterSensor));
   waterSensor2State = w2Buffer.avgOfLastN(8);
-  Serial.print("Touch vals: ");
-  w2Buffer.printData();
-  Serial.println("");
-  logln(w2Buffer.avgOfLastN(1));
-  Serial.println("");
+  // Serial.print("Touch vals: ");
+  // w2Buffer.printData();
+  // Serial.println("");
+  // logln(w2Buffer.avgOfLastN(1));
+  // Serial.println("");
 }
 
 void interactiveSetupTask(void * parameter){
@@ -724,16 +819,31 @@ void interactiveSetupTask(void * parameter){
   }
 }
 
+void checkShouldPlannedRestart(){
+  uint64_t currentMillis = millis();
+  uint64_t uptime = currentMillis - startupMillis;
+
+  if (uptime >= MAX_UPTIME_MS && !pumpState) { ///TODO also track trans test
+      Serial.println("Uptime exceeded 48 hours, restarting...");
+      delay(100);   // allow serial flush
+      ESP.restart();
+  } else {
+    // logln("Planned restart in", (MAX_UPTIME_MS - uptime)/1000, "secs");
+  }
+}
+
 void mainloop(void * parameter){
   vTaskDelay(1000);   //yield some time to other tasks
   int sensorTime = 5; //num of loop iterations between sensor reading/PID. Every x loops
   unsigned long interval = 1000;   // 1 second
 
-    mqttreconnect();
+  mqttreconnect();
   mqttclient.publish(MQTTPUBLISHTOPIC, "hi");
 
   while(true){
     unsigned long start = millis();      // when the loop started
+
+    checkShouldPlannedRestart();
 
     if(lockHVAC && dehumidiferState){   //turn off dehumidifer when HVAC is locked (this is now a sideffect of the variable state!)
       setDehumidifierState(false);
@@ -752,6 +862,8 @@ void mainloop(void * parameter){
       updateFanPower();  //cool trick to recreate fan task at a good time (where it wont crash)
       fanChanged=false;
     }
+    fanBuffer.write(fanPower);
+    heaterStateBuffer.write(heaterState? 1 : 0);
 
     if(restoreDehumid && !lockHVAC){
       setDehumidifierState(true);
@@ -791,17 +903,21 @@ void mainloop(void * parameter){
           Serial.print("±RH ");
           Serial.print("fan ");
           Serial.println(fanPower);
-
+          ventOnHighTemp(); // allow vent in any case!
+          
           if(!lockHVAC){
             if(autoHeater){
               operateHeater(); 
+              if(heaterState){
+                heaterPID();
+              }
             }
 
             if(automaticFanVpd){
-              if(!heaterState){ // lock fan while heater is on
                 fanPID();
-              }
-              ventOnHighTemp(); // allow vent in any case!
+                if(heaterState && fanPower > 15){
+                  fanPower = 15;
+                }
             }
             if(automaticDehumidifier){
               if(dehumidifierPrimaryMode){
@@ -870,7 +986,9 @@ void mainloop(void * parameter){
 
     unsigned long elapsed = millis() - start;
     if (elapsed < interval) {
-        vTaskDelay(interval - elapsed);
+      vTaskDelay(interval - elapsed);
+    } else {
+      logln("loop overran by", elapsed- interval);
     }
     loopCounter++;    //changing this value resets the freezewatchdog
     if(loopCounter > 100){
@@ -1031,7 +1149,7 @@ void setup() {
   updateFanPower();
 
   refreshNetworkTime();
-
+  startupMillis = millis();
 }
 
 extern "C" void app_main()

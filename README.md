@@ -23,22 +23,21 @@ Only the ESP32 and temp/humidity sensor are strictly required
 * Relay for heater control
 
 
-## Build instructions:
+## Installing on an ESP32
+1. Download the latest release and flash the .bin to your esp32 using esptool
 1. Register on MQHive for a cloud MQTT Broker or setup a MQTT broker locally.
-2. Download this repo and open in Vscode. You will need the Platformio extension installed.
-3. Fill out Credentials.h with credentials for your wifi network and MQTT broker.
-4. Connect your ESP32 to the computer via usb
-5. Set the COM port of your ESP32 in `platformio.ini` file and flash the firmware.
+1. Once flashing is complete the ESP will enter setup mode and create a Wifi access point. Connect to it using a phone or computer and setup your wifi and MQTT credentials. You can re-enter setup mode by shorting Pin 23 to GND
+1. Connect sensors to the ESP32 (see below), and connect the esp to power either via the pins or USB port (Requires 5v 2A). Unfortunately, most PC usb ports only provide 1A so you will need a usb plug adapter or power supply.
 
-Once flashing is complete you should see the Esp32 connect to Wifi and authenticate with your MQTT broker via the serial monitor output.
+#### Dashboard setup
 
-6. Install Node-red on a computer (or phone or raspberry pi)
-7. In Node-red import the dashboard.json (or Mobile.json on mobile) flow file in this repo.
-8. In Node-red configure MQTT broker login details you created in step 2.
-9. Connect sensors to the ESP32 (see below), and connect the esp to power either via the pins or USB port (Requires 5v 2A). Unfortunately, most PC usb ports only provide 1A so you will need a usb plug adapter or power supply.
+1. Install Node-red on any computer. This can be a desktop, phone or raspberry pi. There are lots of options Raspberry pi the best in most cases
+1. In Node-red import the dashboard.json (or Mobile.json on mobile) flow file in this repo.
+1. In Node-red configure MQTT broker login details you created in step 2.
+
 
 ## MQTT Topics
-The Topic the grow controller will publish sensor data to is specified in credentials.h as MQTTPUBLISHTOPIC.
+The Topic the grow controller will publish sensor data to MQTTPUBLISHTOPIC.
 The controller can be instructed by sending messages to the MQTTCONTROLTOPIC + the endpoint
 e.g MQTTCONTROLTOPIC + "dehumidifier/auto"
 The following endpoints are supported:
@@ -73,3 +72,12 @@ There are a number of switches that effect how the controller behaves
 * Primary dehumidifier mode - Automatically control dehumidifier to maintain VPD
 * Secondary dehumidifier mode - dehumidifier is controlled based on fan power. turn on when over 90%, turn off when under 50%
 
+
+
+## Build instructions:
+
+2. Download this repo and open in Vscode. You will need the Platformio extension installed.
+
+## thanks to
+https://maakbaas.com/esp32-soil-moisture-sensor/logs/testing-the-sensor
+https://carnotcycle.wordpress.com/2012/08/04/how-to-convert-relative-humidity-to-absolute-humidity/

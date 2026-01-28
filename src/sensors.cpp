@@ -146,7 +146,7 @@ bool checkSensors(){
   float num = 0;
   int dupecount = 0;
   for(int i=1; i<5; i++){
-    int index = (humidityBuffer.newest_index - i + BUFFER_SIZE) % BUFFER_SIZE;
+    int index = (humidityBuffer.newest_index - i + humidityBuffer.size()) % humidityBuffer.size();
     float c  = humidityBuffer.data[index];
     if(c == num){
         dupecount++;

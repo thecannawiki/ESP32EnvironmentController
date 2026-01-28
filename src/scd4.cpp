@@ -51,11 +51,11 @@ bool readScd40(){   //This can be done every 5 seconds
             errorToString(error, errorMessage, 256);
             Serial.println(errorMessage);
 
-            int prevIndex =  (humidityBuffer.newest_index - 1 + BUFFER_SIZE) % BUFFER_SIZE;
+            int prevIndex =  (humidityBuffer.newest_index - 1 + humidityBuffer.size()) % humidityBuffer.size();
             float hufailval = humidityBuffer.data[prevIndex];
             humidityBuffer.write(hufailval);
 
-            prevIndex = (tempBuffer.newest_index - 1 + BUFFER_SIZE) % BUFFER_SIZE;
+            prevIndex = (tempBuffer.newest_index - 1 + tempBuffer.size()) % tempBuffer.size();
             float tempfailval = tempBuffer.data[prevIndex];
             
             tempBuffer.write(tempfailval);
@@ -66,10 +66,11 @@ bool readScd40(){   //This can be done every 5 seconds
             tempBuffer.write(t);
         }
 
-        humidityBuffer.printData();
+        //humidityBuffer.printData();
+        
         humidity = humidityBuffer.avgOfLastN(2);
         temp = tempBuffer.avgOfLastN(2);
-
+        Serial.println(humidity);
         
         if(t == 0.0f && tempBuffer.avgOfLastN(8) == 0.0f){ // First read on the scd40 can be 0
             return false;

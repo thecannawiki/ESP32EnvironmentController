@@ -41,7 +41,8 @@ bool automaticFanVpd = true;
 bool dehumidifierPrimaryMode = false; // Primary mode means dehumidifier/humidifier will operate on bounds around target humidity. When false (secondary mode) it will control based on fan power usage
 bool dehumidifierForTemp = false; // The dehumidifier  will operate on bounds around target temperature. This takes precedence over dehumidifier secondary mode when enabled
 bool heaterState = false;
-int heaterPower = 50;
+int heaterMaxPower = 50;
+float heaterPower = heaterMaxPower;
 bool heaterTempMode = false;
 bool autoHeater = false;
 bool pumpState = false;
@@ -94,18 +95,23 @@ float lowerHumidityBound = 40.0f;
 char sensorjson[SENSORJSON_SIZE];
 
 
-Buffer humidityBuffer;
-Buffer tempBuffer;
-Buffer errorBuffer;
-Buffer w1Buffer;
-Buffer w2Buffer;
-Buffer fanBuffer;
+Buffer<64> humidityBuffer ;  ///written to every SensorTime
+Buffer<64> tempBuffer;
+Buffer<64> errorBuffer;
+Buffer<64> w1Buffer;
+Buffer<64> w2Buffer;
+Buffer<500> fanBuffer;   //written to every second
+Buffer<500> heaterStateBuffer;   //written to every second
 
 
 //PID
 float P = 0.1;
 float I = 0.1;
 float D = 0.1;
+
+//heater PID
+float HP = 0.1;
+float HD = 0.1;
 
 
 //time

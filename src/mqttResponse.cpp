@@ -299,18 +299,18 @@ const void handleTargetHumidity(const String &message)
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
-const void handleHeaterPower(const String &message)
+const void handleHeaterMaxPower(const String &message)
 {
   int num = message.toInt();
   if (num > 0 && num <= 100)
   {
-    heaterPower = num;
-    // preferences.putFloat("=", targetTemperature);
-    // saveToNVM();
+    heaterMaxPower = num;
+    preferences.putInt("heaterMaxPower", heaterMaxPower);
+    saveToNVM();
     char data[60];
-    snprintf_P(data, sizeof(data), PSTR("{\"heaterPower\":%d}"), heaterPower);
+    snprintf_P(data, sizeof(data), PSTR("{\"heaterMaxPower\":%d}"), heaterMaxPower);
     mqttclient.publish(MQTTPUBLISHTOPIC, data);
-    setHeaterState(heaterState); // update heater hardware
+    updateHeaterPower(); // update heater hardware
   }
 }
 
@@ -525,7 +525,7 @@ const std::string fanPowerTopicName = "/exhaust";
 const std::string setHeaterTopicName = "/heater";
 const std::string tempTargetTopicName = "/heater/target";
 const std::string heaterForTempTopicName = "/heater/tempMode";
-const std::string heaterPowerTopicName = "/heater/power";
+const std::string heaterMaxPowerTopicName = "/heater/maxPower";
 const std::string fanSoftMax = "/exhaust/softMax";
 const std::string fanSoftMin ="/exhaust/softMin";
 const std::string transpirationMeasurement = "/transTest";
@@ -568,7 +568,7 @@ void mqttSubscribeTopics(std::string MQTTCONTROLTOPIC)
   mqttclient.subscribe((MQTTCONTROLTOPIC + tempTargetTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + heaterForTempTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + pumpTimerTopicName).data());
-  mqttclient.subscribe((MQTTCONTROLTOPIC + heaterPowerTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + heaterMaxPowerTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + controlModeTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + handleTargetHumidityTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + w1ThreshTopicName).data());
@@ -601,7 +601,7 @@ void mqttHandle(char *topic, String message)
   functionDict[dehumidiferForTempEndpoint.c_str()] = handleSetDehumidifierForTemp;
   functionDict[setHeaterTopicName.c_str()] = handlesetHeater;
   functionDict[pumpTimerTopicName.c_str()] = handlePumpTimer;
-  functionDict[heaterPowerTopicName.c_str()] = handleHeaterPower;
+  functionDict[heaterMaxPowerTopicName.c_str()] = handleHeaterMaxPower;
   functionDict[tempTargetTopicName.c_str()] = handleTargetTemp;
   functionDict[heaterForTempTopicName.c_str()] = handleHeaterForTemp;
   functionDict[controlModeTopicName.c_str()] = handleAutoControlMode;

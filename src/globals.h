@@ -44,7 +44,6 @@ extern bool automaticHumidifier;
 extern bool automaticFanVpd;
 extern bool dehumidifierPrimaryMode;
 extern bool dehumidifierForTemp;
-extern bool heaterState;
 extern int heaterMaxPower;
 extern float heaterPower;
 extern bool heaterTempMode;
@@ -107,6 +106,7 @@ extern Buffer<64> w1Buffer;
 extern Buffer<64> w2Buffer;
 extern Buffer<500> fanBuffer;
 extern Buffer<500> heaterStateBuffer;
+extern Buffer<300> humidifierStateBuffer;
 
 
 //PID
@@ -160,6 +160,6 @@ extern Preferences preferences;
 extern int loopCounter;
 extern bool setupReceived;
 extern int transTestTime;
-
+extern time_t humidifierPauseTime;
 
 #endif

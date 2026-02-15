@@ -40,7 +40,6 @@ bool automaticHumidifier = true;
 bool automaticFanVpd = true;
 bool dehumidifierPrimaryMode = false; // Primary mode means dehumidifier/humidifier will operate on bounds around target humidity. When false (secondary mode) it will control based on fan power usage
 bool dehumidifierForTemp = false; // The dehumidifier  will operate on bounds around target temperature. This takes precedence over dehumidifier secondary mode when enabled
-bool heaterState = false;
 int heaterMaxPower = 50;
 float heaterPower = heaterMaxPower;
 bool heaterTempMode = false;
@@ -102,6 +101,7 @@ Buffer<64> w1Buffer;
 Buffer<64> w2Buffer;
 Buffer<500> fanBuffer;   //written to every second
 Buffer<500> heaterStateBuffer;   //written to every second
+Buffer<300> humidifierStateBuffer;   //written to every second
 
 
 //PID
@@ -112,6 +112,9 @@ float D = 0.1;
 //heater PID
 float HP = 0.1;
 float HD = 0.1;
+float HVPDP = 1; // heater vpd (PID) P term
+float HVPDD = 1; // heater vpd (PID) D term
+
 
 
 //time
@@ -156,3 +159,4 @@ Preferences preferences;
 int loopCounter = 0;
 bool setupReceived = false;
 int transTestTime = 0;
+time_t humidifierPauseTime = 0;

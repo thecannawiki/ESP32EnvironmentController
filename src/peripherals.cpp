@@ -50,27 +50,23 @@ void setHeaterState(bool state){
     Serial.println("turning heater ON");
   } else {
     // digitalWrite(heaterControlPin, LOW);
+    heaterPower = 0;
     ledcWrite(heaterPWMchannel, 0);
     Serial.println("turning heater OFF");
   }
 
-  heaterState = state;
-  preferences.putBool("headerState", heaterState);
+  // heaterState = state;
+  // preferences.putBool("headerState", heaterState);
 }
 
 void updateHeaterPower(){
   if(heaterPower > heaterMaxPower){ heaterPower=heaterMaxPower;}
   float p = heaterPower / 100.0f;
   int power =  p * maxPWMval;
-
+  fanChanged = true; //Trigger fan update incase fan needs to be turned down due to high heater
   ledcWrite(heaterPWMchannel, power);
 }
 
-void startHeater(){
-  setHeaterState(true);
-  time(&timeNow);
-  heaterEnd = timeNow + 10*60;
-}
 
 float PIDDTerm(int lookback_length){
 

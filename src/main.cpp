@@ -139,6 +139,8 @@ void UpdateSensorJson(){
   
   if(co2 != 65535){doc["co2"] = co2;}   // 65535 is the co2 value from the SCD-40 when its still warming up
 
+  dtostrf(targetTemperature, 5, 3, trimmedfloat);
+  doc["TT"] = atof(trimmedfloat);   // target temp
   // doc["tvoc"] = tvoc;
   dtostrf(calcVpd(temp, humidity), 4, 2, trimmedfloat); 
   doc["vpd"] = atof(trimmedfloat);
@@ -149,10 +151,14 @@ void UpdateSensorJson(){
   doc["TRH"] = atof(trimmedfloat);        //Target RH (humidity)
   dtostrf(P, 4, 2, trimmedfloat);
   doc["P"] = atof(trimmedfloat);
-  dtostrf(I, 4, 2, trimmedfloat);
-  doc["I"] = atof(trimmedfloat);
+  // dtostrf(I, 4, 2, trimmedfloat);
+  // doc["I"] = atof(trimmedfloat);
   dtostrf(D, 4, 2, trimmedfloat);
   doc["D"] = atof(trimmedfloat);
+  dtostrf(HP, 4, 2, trimmedfloat);
+  doc["HP"] = atof(trimmedfloat);
+  dtostrf(HD, 4, 2, trimmedfloat);
+  doc["HD"] = atof(trimmedfloat);
   if(!lockHVAC){
     dtostrf(fanPower, 4, 1, trimmedfloat);
     doc["F"] = atof(trimmedfloat);  //fan
@@ -162,10 +168,9 @@ void UpdateSensorJson(){
   doc["ADHU"] = int(automaticDehumidifier);  //auto dehumidifier
   doc["AHU"] = int(automaticHumidifier);  //auto dehumidifier
   doc["w1"] = waterSensor1State;
-  doc["w2"] = waterSensor2State;
-  doc["H"] = int(heaterState); //heater
+  doc["w2"] = int(w2Buffer.avgOfLastN(8));
   dtostrf(heaterPower, 4, 2, trimmedfloat);
-  doc["HP"] = atof(trimmedfloat);
+  doc["H"] = atof(trimmedfloat);
   doc["w1T"] = w1maxWaterSensorVal;
   doc["w2T"] = w2maxWaterSensorVal;
   doc["VPDMode"] = int(vpdMode);
@@ -185,6 +190,8 @@ void initNonVolitileMem(){
   P = preferences.getFloat("P", 0.4f);
   I = preferences.getFloat("I", 0.3f);
   D = preferences.getFloat("D", 3.0f);
+  HP = preferences.getFloat("HP", 1.0f);
+  HD = preferences.getFloat("HD", 0.1f);
   automaticDehumidifier = preferences.getBool("autoDehumid", automaticDehumidifier);
   automaticFanVpd = preferences.getBool("autoVpd", automaticFanVpd);
   dehumidifierPrimaryMode = preferences.getBool("primaryHumid", dehumidifierPrimaryMode);
@@ -192,7 +199,7 @@ void initNonVolitileMem(){
   targetVpd = preferences.getFloat("tvpd", 1.0f);
   targetTemperature = preferences.getFloat("ttemp", targetTemperature);
   targetHumidity = preferences.getFloat("targetHumidity", targetHumidity);
-  heaterState = preferences.getBool("headerState", false);
+  // heaterState = preferences.getBool("headerState", false);
   softMaxFan = preferences.getFloat("softMaxFan", 100.0f);
   softMinFan = preferences.getFloat("softMinFan", 0.0f);
   heaterTempMode = preferences.getFloat("HFT", heaterTempMode);
@@ -223,43 +230,6 @@ void initNonVolitileMem(){
 //   request->send_P(200, "application/json", sensorjson);
 // }
 
-
-// void setUpperbound(AsyncWebServerRequest *request){
-//   int paramsNr = request->params();
-//   for(int i=0;i<paramsNr;i++){
-//     const AsyncWebParameter* p = request->getParam(i);
-//     String paramName = p->name();
-//     String paramValue = p->value();
-//     if(paramName=="int" && paramValue.toInt()!=0){
-//       Serial.println("setting upper bound to");
-//       Serial.println(paramValue);
-//       upperHumidityBound = paramValue.toFloat();
-//       request->send(200, "text/plain", "upperBound set");
-//     } else {
-//       Serial.println("cast failed or int param not found");
-//       request->send(400, "cast failed or int param not found");
-//     }
-//   }
-// }
-
-// void setLowerbound(AsyncWebServerRequest *request){
-//   int paramsNr = request->params();
-//   for(int i=0;i<paramsNr;i++){
-//     const AsyncWebParameter* p = request->getParam(i);
-//     String paramName = p->name();
-//     String paramValue = p->value();
-//     if(paramName=="int" && paramValue.toInt()!=0){
-//       Serial.println("setting lower bound to");
-//       Serial.println(paramValue);
-//       lowerHumidityBound = paramValue.toFloat();
-//       Serial.println(lowerHumidityBound);
-//       request->send(200, "text/plain", "lowerBound set");
-//     } else {
-//       Serial.println("cast failed or int param not found");
-//       request->send(400, "cast failed or int param not found");
-//     }
-//   }
-// }
 
 
 
@@ -293,7 +263,7 @@ void kickFan(){
 }
 
 void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-1000 by multiplying by 10
-  if(heaterState && fanPower >15){
+  if(heaterPower >10 && fanPower >15){
     fanPower = 15;
   }
   
@@ -478,16 +448,39 @@ void operateDehumidifierOnFanUsage(){
 void operateHumidifier(){
   float humidityError = humidity - targetHumidity;
   float dir = humidityBuffer.PID_D_Diff(12);
+  float avg_hu_err = errorBuffer.avgOfLastN(24);    // 2 mins
   logln("hu", dir);
+  int xMinutes = 8; // change this
 
   // Too wet!
   if(humidityError > 2.5f){
     setHumidifierState(false);
     return;
   }
+ 
 
-  // sensor buffer not warmed up yet
-  if(dir == 0.0f){
+  //check if humidifier is oscillating
+  
+  time_t now = time(nullptr);
+  if (humidifierPauseTime != 0){
+    if(now >= humidifierPauseTime){
+      logln("Unpausing humidifer");
+      humidifierPauseTime = 0;
+    } else {
+      logln("Humidifer paused", humidifierPauseTime- now, "remaining");
+      return;
+    }
+  }
+
+  int onForLast = humidifierStateBuffer.countVal(1, 120); // 2 mins
+  logln("hu on for", onForLast, "secs in last 2 min");
+  float onPercent = float(onForLast) / 120.0f;
+  logln("on percent", onPercent, "avg hu", avg_hu_err);
+  if(onPercent >= 0.3f && onPercent <= 0.7f && avg_hu_err > -0.8f && avg_hu_err < 0.8f){ //in a good range but using the humidifier on and off
+    logln("HUMIDIFIER OSCILLATION DETECTED!");
+    humidifierPauseTime = time(nullptr) + (xMinutes * 60);
+    setHumidifierState(false);
+    logln("pausing humidifer for ", xMinutes);
     return;
   }
 
@@ -499,13 +492,10 @@ void operateHumidifier(){
     }
 
   } else {
-    if(humidityError <= -5.0f || (humidityError <= 0.0f && dir <=-1.0f)){
+    if(humidityError <= -5.0f || (humidityError <= -2.0f && dir <=-1.0f)){
         setHumidifierState(true);
     }
-
-
-  }
-  
+  }  
 }
 
 void operateDehumidifierOnTempBounds(){
@@ -540,16 +530,16 @@ float calcDfan(){
   
   float Dfan = D * diff; 
 
-  Serial.print("D = ");
-  Serial.print(Dfan);
-  Serial.print(" (diff ");
-  Serial.print(diff);
+  // Serial.print("D = ");
+  // Serial.print(Dfan);
+  // Serial.print(" (diff ");
+  // Serial.print(diff);
   if(diff > 0){
     Serial.print("RH trending up");
   } else {
     Serial.print("RH trending down");
   }
-  Serial.println(")");
+  // Serial.println(")");
 
   return Dfan;
 }
@@ -570,75 +560,14 @@ float calcIfan(){
 
   float Ifan = (I * sum) /10; //for tuning
   
-  Serial.print("I = ");
-  Serial.print(Ifan);
-  Serial.print(" (integral ");
-  Serial.print(sum);
-  Serial.println(")");
+  // Serial.print("I = ");
+  // Serial.print(Ifan);
+  // Serial.print(" (integral ");
+  // Serial.print(sum);
+  // Serial.println(")");
 
   return Ifan; 
 }
-
-void heaterPID(){
-  float humidityError = humidity - targetHumidity;
-  //P
-  float Pterm = HP * humidityError;
-  float Dterm = PIDDTerm(8) * HD;
-
-  float newP = heaterPower + Pterm + Dterm;
-  
-  if(newP <=0){newP = 0.0f;}
-  if(newP >=100){newP = 100;}
-  if(newP > heaterMaxPower){ newP = heaterMaxPower;}
-  if(abs(newP - heaterPower) > 0.0f){
-    heaterPower = newP;
-    updateHeaterPower();
-    logln("new heater:", newP);
-  }
-}
-
-void fanPID(){
-      float humidityError = humidity - targetHumidity;
-      // errorBufferWrite(humidityError);
-      errorBuffer.write(humidityError);
-      Serial.println("");
-      Serial.print("humidity error ");
-      Serial.print(humidityError,4);
-      Serial.println("");
-      Serial.println("PID ");
-      //P
-      float Pfan = P * humidityError;
-      
-      logln("P = ", Pfan);
-      
-      //D
-      float Dfan = calcDfan();
-      //I
-      float Ifan = calcIfan();
-
-      float newfan = fanPower + Pfan + Dfan + Ifan;
-      if(newfan > softMaxFan){ newfan = softMaxFan;}
-      if(newfan < softMinFan){newfan = softMinFan;}
-      if(newfan <=0){newfan = 0.0f;}
-      if(newfan >=100){newfan = 100;}
-      if(abs(newfan - fanPower) > 0.0f){
-        Serial.print("new fan power ");
-        Serial.println(newfan);
-        fanPower=newfan;
-        fanChanged=true;
-      }
-}
-
-void ventOnHighTemp(){  //safety feature 👍
-  if(temp!=-1){
-    if(temp > ventTemp){
-      logln("Venting due to high temp! (Over", ventTemp, "degrees)");
-      fanPower=softMaxFan;
-      fanChanged=true;
-      setHeaterState(false);
-    }
-  }
-} 
 
 bool fanStruggle(){
   int lookback = 500;
@@ -674,11 +603,8 @@ bool heaterOnFor(int lookback){ // Heater was on for entire lookback time?
   return false;
 }
 
-void operateHeater(){
-  float humidityError = humidity - targetHumidity;  
-
-  if(heaterState){
-    
+void heaterSensorSafety(){
+  if(heaterPower > 0){
     // float tempDirection = PIDDiff(tempBuffer,24); //24 * 5 = 120
     float tempDirection = tempBuffer.PID_D_Diff(24);
     bool heaterOn = heaterOnFor(120);
@@ -690,24 +616,165 @@ void operateHeater(){
       return;
     }
   }
-
-  /// Run this anyway just for the rare chance that heaterState does not match hardware state
-  if(temp==-1 || (tempBuffer.avgOfLastN(3) >= targetTemperature) ||  humidityError < -2.0f ){ //always care if we are push humidity too dry
-    setHeaterState(false);
-    return;
-  } 
+}
 
 
-  if(!heaterState){
-    if((!heaterTempMode && fanStruggle() && errorBuffer.avgOfLastN(3) > 2) || (heaterTempMode && tempBuffer.avgOfLastN(5) < targetTemperature)){
-      setHeaterState(true);
-      if(fanPower > 0){
-        fanPower = 0;
-      }
-      fanChanged = true;
+float heaterTempPID(){
+  logln("heater PID for temp");
+  float error = targetTemperature - temp;
+  logln("error", error);
+  //P
+  float Pterm = HP * error;
+  logln("heater P", Pterm);
+  float Dterm = PIDDTerm(8) * HD;
+
+  float newP = heaterPower + Pterm + Dterm;
+  
+  return newP;
+}
+
+float heaterVPDPID(){
+  logln("heater PID for VPD");
+  float vpd = calcVpd(temp, humidity);
+  float error = targetVpd - vpd;
+  logln("vpd error", error);
+  //P
+  float Pterm = HP * error;
+  logln("heater P", Pterm);
+  float Dterm = PIDDTerm(8) * HD;
+
+  float newP = heaterPower + Pterm + Dterm;
+  
+  return newP;
+}
+
+float heaterHumidPID(){
+  logln("heater PID for humid");
+  float humidityError = humidity - targetHumidity;
+  //P
+  float Pterm = HP * humidityError;
+  float Dterm = PIDDTerm(8) * HD;
+
+  float newP = heaterPower + Pterm + Dterm;
+  return newP;
+}
+
+void heaterPID(){
+  float newP = heaterTempPID();
+  // if(!heaterTempMode && fanStruggle() && errorBuffer.avgOfLastN(3) > 2)
+  // {
+  //   newP = heaterHumidPID();
+  // }
+  // else if (heaterTempMode && tempBuffer.avgOfLastN(5) < targetTemperature)
+  // {
+  //   newP = heaterTempPID();
+  // }
+  if(heaterTempMode){
+    newP=heaterTempPID();
+  } else{
+    if(vpdMode){
+      newP = heaterVPDPID();
+    } else {
+      newP = heaterHumidPID();
     }
   }
+
+
+  if(newP <=0){newP = 0.0f;}
+  if(newP >=100){newP = 100;}
+  if(newP > heaterMaxPower){ newP = heaterMaxPower;}
+  if(abs(newP - heaterPower) > 0.0f){
+    heaterPower = newP;
+    updateHeaterPower();
+    // logln("new heater:", newP);
+  }
+  logln("Heater PID:", heaterPower);
+
 }
+
+void fanPID(){
+      float humidityError = humidity - targetHumidity;
+      // errorBufferWrite(humidityError);
+      errorBuffer.write(humidityError);
+      // Serial.println("");
+      // Serial.print("humidity error ");
+      // Serial.print(humidityError,4);
+      // Serial.println("");
+      // Serial.println("PID ");
+      //P
+      float Pfan = P * humidityError;
+      
+      // logln("P = ", Pfan);
+      
+      //D
+      float Dfan = calcDfan();
+      //I
+      float Ifan = calcIfan();
+
+      float newfan = fanPower + Pfan + Dfan + Ifan;
+      if(heaterPower >10 && newfan >15){
+        newfan = 15;
+      }
+
+      if(newfan > softMaxFan){ newfan = softMaxFan;}
+      if(newfan < softMinFan){newfan = softMinFan;}
+      if(newfan <=0){newfan = 0.0f;}
+      if(newfan >=100){newfan = 100;}
+      if(abs(newfan - fanPower) > 0.0f){
+        Serial.print("new fan power ");
+        Serial.println(newfan);
+        fanPower=newfan;
+        fanChanged=true;
+      }
+}
+
+
+void ventOnHighTemp(){  //safety feature 👍
+  if(temp!=-1){
+    if(temp > ventTemp){
+      logln("Venting due to high temp! (Over", ventTemp, "degrees)");
+      fanPower=softMaxFan;
+      fanChanged=true;
+      setHeaterState(false);
+    }
+  }
+} 
+
+
+// void operateHeater(){
+//   float humidityError = humidity - targetHumidity;  
+
+//   if(heaterState){
+    
+//     // float tempDirection = PIDDiff(tempBuffer,24); //24 * 5 = 120
+//     float tempDirection = tempBuffer.PID_D_Diff(24);
+//     bool heaterOn = heaterOnFor(120);
+//     Serial.print("temp diff");
+//     Serial.println(tempDirection, 6);
+//     if(heaterOn && tempDirection < -0.01f && errorBuffer.avgOfLastN(3) > 2.5f){
+//       logln("Disabling heater. Temp not rising and not in target range");
+//       setHeaterState(false);
+//       return;
+//     }
+//   }
+
+//   /// Run this anyway just for the rare chance that heaterState does not match hardware state
+//   if(temp==-1 || (tempBuffer.avgOfLastN(3) >= targetTemperature) ||  humidityError < -2.0f ){ //always care if we are push humidity too dry
+//     setHeaterState(false);
+//     return;
+//   } 
+
+
+//   if(!heaterState){
+//     if((!heaterTempMode && fanStruggle() && errorBuffer.avgOfLastN(3) > 2) || (heaterTempMode && tempBuffer.avgOfLastN(5) < targetTemperature)){
+//       setHeaterState(true);
+//       if(fanPower > 0){
+//         fanPower = 0;
+//       }
+//       fanChanged = true;
+//     }
+//   }
+// }
 
 void operateHeaterOnBounds(){
   float humidityError = humidity - targetHumidity;  
@@ -805,19 +872,9 @@ void updateWaterSensors(){
 
   w2Buffer.write(100 - touchRead(touchWaterSensor));
   waterSensor2State = w2Buffer.avgOfLastN(8);
-  // Serial.print("Touch vals: ");
-  // w2Buffer.printData();
-  // Serial.println("");
-  // logln(w2Buffer.avgOfLastN(1));
-  // Serial.println("");
+
 }
 
-void interactiveSetupTask(void * parameter){
-  logln("Awaiting user setup");
-  while(true){
-    vTaskDelay(5000);
-  }
-}
 
 void checkShouldPlannedRestart(){
   uint64_t currentMillis = millis();
@@ -853,7 +910,7 @@ void mainloop(void * parameter){
       setHumidifierState(false);
       restoreHumid = true;
     }
-    if(lockHVAC && heaterState){
+    if(lockHVAC && heaterPower >0){
       setHeaterState(false);
     }
 
@@ -863,7 +920,8 @@ void mainloop(void * parameter){
       fanChanged=false;
     }
     fanBuffer.write(fanPower);
-    heaterStateBuffer.write(heaterState? 1 : 0);
+    heaterStateBuffer.write(heaterPower>0? 1 : 0);
+    humidifierStateBuffer.write(humidifierState? 1 : 0);
 
     if(restoreDehumid && !lockHVAC){
       setDehumidifierState(true);
@@ -907,17 +965,14 @@ void mainloop(void * parameter){
           
           if(!lockHVAC){
             if(autoHeater){
-              operateHeater(); 
-              if(heaterState){
-                heaterPID();
-              }
+              //operateHeater(); 
+              //if(heaterState){
+              heaterPID();
+              //}
             }
 
             if(automaticFanVpd){
                 fanPID();
-                if(heaterState && fanPower > 15){
-                  fanPower = 15;
-                }
             }
             if(automaticDehumidifier){
               if(dehumidifierPrimaryMode){
@@ -1031,7 +1086,7 @@ void setup() {
   Serial.println("");
   delay(200);
   logln("Device name:", deviceName);
-  heaterState = false;                  //safety 👍
+  heaterPower = 0;                  //safety 👍
   
   i2cScan();
   //sensors

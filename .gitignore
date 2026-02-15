@@ -6,3 +6,6 @@
 /Hardware/main_board/main_board-backups
 /Hardware/nursery_board/nursery_board-backups
 /build
+/reset_captures
+/.idea
+/.vscode

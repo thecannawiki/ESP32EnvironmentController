@@ -339,6 +339,46 @@ const void handleHeaterForTemp(const String &message)
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
+const void handleSetHeaterPower(const String &message){
+  float num = message.toFloat();
+
+  if (num > 100){num = 100;}
+  if (num < 0){num = 0;}
+  if (num > heaterMaxPower){ num = heaterMaxPower;}
+
+  heaterPower = num;
+  updateHeaterPower();
+  preferences.putFloat("heater", heaterPower);
+  saveToNVM();
+
+  char data[20];
+  snprintf_P(data, sizeof(data), PSTR("{\"heater\":%f}"), heaterPower);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+
+}
+
+
+const void handleSetHeaterPID(const String &message){
+  int eqIndex = message.indexOf('=');
+  if (eqIndex == -1) return;
+
+  String key = message.substring(0, eqIndex);
+  float value = message.substring(eqIndex + 1).toFloat();
+
+  if(key == "P"){
+    HP = value;
+    preferences.putFloat("HP", HP);
+  } else if (key == "D"){
+    HD = value;
+    preferences.putFloat("HD", HD);
+  }
+
+  saveToNVM();
+  char data[60];
+  snprintf_P(data, sizeof(data), PSTR("{\"HP\":%f, \"HD\":%f}"), HP, HD);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+}
+
 const void handleSetP(const String &message)
 {
   float num = message.toFloat();
@@ -433,8 +473,7 @@ const void handlesetHeater(const String &message)
   {
     setHeaterState(false);
   }
-
-  if (message == "auto")
+  else if (message == "auto")
   {
     autoHeater = true;
   }
@@ -443,12 +482,11 @@ const void handlesetHeater(const String &message)
     autoHeater = false;
   }
 
-  preferences.putBool("headerState", heaterState);
   preferences.putBool("autoHeater", autoHeater);
 
   saveToNVM();
   char data[50];
-  snprintf_P(data, sizeof(data), PSTR("{\"heater\":%d, \"autoHeater\":%d}"), heaterState, autoHeater);
+  snprintf_P(data, sizeof(data), PSTR("{\"heater\":%f, \"autoHeater\":%d}"), heaterPower, autoHeater);
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
@@ -523,9 +561,11 @@ const void handleAutoControlMode(const String &message){
 const std::string humidifierStateTopicName = "/humidifier";
 const std::string fanPowerTopicName = "/exhaust";
 const std::string setHeaterTopicName = "/heater";
+const std::string setHeaterPowerTopicName = "/heater/power";
 const std::string tempTargetTopicName = "/heater/target";
 const std::string heaterForTempTopicName = "/heater/tempMode";
 const std::string heaterMaxPowerTopicName = "/heater/maxPower";
+const std::string heaterPIDTopicName = "/heater/PID";
 const std::string fanSoftMax = "/exhaust/softMax";
 const std::string fanSoftMin ="/exhaust/softMin";
 const std::string transpirationMeasurement = "/transTest";
@@ -573,6 +613,8 @@ void mqttSubscribeTopics(std::string MQTTCONTROLTOPIC)
   mqttclient.subscribe((MQTTCONTROLTOPIC + handleTargetHumidityTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + w1ThreshTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + w2ThreshTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + heaterPIDTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + setHeaterPowerTopicName).data());
 }
 
 void mqttHandle(char *topic, String message)
@@ -608,6 +650,8 @@ void mqttHandle(char *topic, String message)
   functionDict[handleTargetHumidityTopicName.c_str()] = handleTargetHumidity;
   functionDict[w1ThreshTopicName.c_str()] = handleWaterThresh;
   functionDict[w2ThreshTopicName.c_str()] = handleWater2Thresh;
+  functionDict[heaterPIDTopicName.c_str()] = handleSetHeaterPID;
+  functionDict[setHeaterPowerTopicName.c_str()] = handleSetHeaterPower;
 
   // Call the corresponding function based on the input
   // std::string topicName = topic;

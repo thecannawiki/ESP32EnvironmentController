@@ -41,6 +41,7 @@ int sensorReadFailCount = 0;
 int mqttPublishFailCount = 0;
 int wifiConnectFailCount = 0;
 int consecutiveMqttConnectFailCount =0;
+float avgHumidityAtHumidifierTurnOn = 0;
 
 int PIDLookback = 12; //number of samples to look back on for PID 
 
@@ -452,17 +453,9 @@ void operateHumidifier(){
   logln("hu", dir);
   int xMinutes = 8; // change this
 
-  // Too wet!
-  if(humidityError > 2.5f){
-    setHumidifierState(false);
-    return;
-  }
- 
-
-  //check if humidifier is oscillating
-  
-  time_t now = time(nullptr);
+  //handle pause
   if (humidifierPauseTime != 0){
+    time_t now = time(nullptr);
     if(now >= humidifierPauseTime){
       logln("Unpausing humidifer");
       humidifierPauseTime = 0;
@@ -472,17 +465,40 @@ void operateHumidifier(){
     }
   }
 
-  int onForLast = humidifierStateBuffer.countVal(1, 120); // 2 mins
-  logln("hu on for", onForLast, "secs in last 2 min");
-  float onPercent = float(onForLast) / 120.0f;
-  logln("on percent", onPercent, "avg hu", avg_hu_err);
-  if(onPercent >= 0.3f && onPercent <= 0.7f && avg_hu_err > -0.8f && avg_hu_err < 0.8f){ //in a good range but using the humidifier on and off
-    logln("HUMIDIFIER OSCILLATION DETECTED!");
-    humidifierPauseTime = time(nullptr) + (xMinutes * 60);
+  // Too wet!
+  if(humidityError > 2.5f){
     setHumidifierState(false);
-    logln("pausing humidifer for ", xMinutes);
     return;
   }
+  
+
+
+  //check if humidifer is effective
+  int lookbackSecs = 180; // 3 mins
+  int onForLast = humidifierStateBuffer.countVal(1, lookbackSecs); 
+  logln("Humidifier on for ", lookbackSecs, " secs humiditify diff since last turn on ", humidifierStateBuffer.avgOfLastN(20) - avgHumidityAtHumidifierTurnOn);
+  //check humidity has raised a reasonable amount
+  if(humidifierState && onForLast > lookbackSecs && avgHumidityAtHumidifierTurnOn && humidifierStateBuffer.avgOfLastN(20) - avgHumidityAtHumidifierTurnOn <= 10){
+    logln("Humidifier on for ", lookbackSecs, " secs humiditify diff ", humidifierStateBuffer.avgOfLastN(20) - avgHumidityAtHumidifierTurnOn, "humidifier uneffective");
+    humidifierPauseTime = time(nullptr) + (10 * 60);
+    setHumidifierState(false);
+    logln("pausing humidifer for ", 10);
+    return;
+
+  }
+
+  //check if humidifier is oscillating
+  // int onForLast = humidifierStateBuffer.countVal(1, 120); // 2 mins
+  // logln("hu on for", onForLast, "secs in last 2 min");
+  // float onPercent = float(onForLast) / 120.0f;
+  // logln("on percent", onPercent, "avg hu", avg_hu_err);
+  // if(onPercent >= 0.3f && onPercent <= 0.7f && avg_hu_err > -0.8f && avg_hu_err < 0.8f){ //in a good range but using the humidifier on and off
+  //   logln("HUMIDIFIER OSCILLATION DETECTED!");
+  //   humidifierPauseTime = time(nullptr) + (xMinutes * 60);
+  //   setHumidifierState(false);
+  //   logln("pausing humidifer for ", xMinutes);
+  //   return;
+  // }
 
 
   if(humidifierState){
@@ -494,6 +510,8 @@ void operateHumidifier(){
   } else {
     if(humidityError <= -5.0f || (humidityError <= -2.0f && dir <=-1.0f)){
         setHumidifierState(true);
+        avgHumidityAtHumidifierTurnOn = avg_hu_err;
+
     }
   }  
 }
@@ -660,15 +678,16 @@ float heaterHumidPID(){
 }
 
 void heaterPID(){
-  float newP = heaterTempPID();
-  // if(!heaterTempMode && fanStruggle() && errorBuffer.avgOfLastN(3) > 2)
-  // {
-  //   newP = heaterHumidPID();
-  // }
-  // else if (heaterTempMode && tempBuffer.avgOfLastN(5) < targetTemperature)
-  // {
-  //   newP = heaterTempPID();
-  // }
+  float newP = 0;
+ 
+    // if(!heaterTempMode && fanStruggle() && errorBuffer.avgOfLastN(3) > 2)
+    // {
+    //   newP = heaterHumidPID();
+    // }
+    // else if (heaterTempMode && tempBuffer.avgOfLastN(5) < targetTemperature)
+    // {
+    //   newP = heaterTempPID();
+    // }
   if(heaterTempMode){
     newP=heaterTempPID();
   } else{
@@ -678,11 +697,12 @@ void heaterPID(){
       newP = heaterHumidPID();
     }
   }
-
+  
 
   if(newP <=0){newP = 0.0f;}
   if(newP >=100){newP = 100;}
   if(newP > heaterMaxPower){ newP = heaterMaxPower;}
+
   if(abs(newP - heaterPower) > 0.0f){
     heaterPower = newP;
     updateHeaterPower();
@@ -840,7 +860,7 @@ void checkPump(){
   
   time(&timeNow);
 
-  if(waterSensor1State >= w1maxWaterSensorVal || waterSensor2State >= w2maxWaterSensorVal){
+  if(waterSensor1State > w1maxWaterSensorVal || waterSensor2State > w2maxWaterSensorVal){
     pumpEnd = 0;
     pumpState = false;
     digitalWrite(pumpControlPin, LOW);
@@ -864,14 +884,14 @@ void checkPump(){
 void updateWaterSensors(){
   w1Buffer.write(analogRead(waterSensor1Pin));
   // w1Buffer.printData();
-  waterSensor1State = w1Buffer.avgOfLastN(8);
+  waterSensor1State = w1Buffer.avgOfLastN(4);
   // waterSensor2State = analogRead(waterSensor2Pin);
 
   serialLog("water sensor 1: ", false);
   Serial.println(waterSensor1State);
 
   w2Buffer.write(100 - touchRead(touchWaterSensor));
-  waterSensor2State = w2Buffer.avgOfLastN(8);
+  waterSensor2State = w2Buffer.avgOfLastN(4);
 
 }
 
@@ -932,11 +952,11 @@ void mainloop(void * parameter){
       restoreHumid = false;
     }
     
-    if(loopCounter%5 == 0){
+    if(loopCounter%2 == 0){
       updateWaterSensors();
       checkPump();
       // checkHeater();
-      Serial.printf("Main Stack high watermark: %u\n", uxTaskGetStackHighWaterMark(NULL));
+      // Serial.printf("Main Stack high watermark: %u\n", uxTaskGetStackHighWaterMark(NULL));
     }
     
     if(loopCounter%sensorTime == 0){
@@ -965,10 +985,7 @@ void mainloop(void * parameter){
           
           if(!lockHVAC){
             if(autoHeater){
-              //operateHeater(); 
-              //if(heaterState){
               heaterPID();
-              //}
             }
 
             if(automaticFanVpd){
@@ -1032,10 +1049,7 @@ void mainloop(void * parameter){
     if(loopCounter %60 == 0){
       refreshNetworkTime();
       Serial.println("");
-      Serial.print(timeinfo.tm_hour);
-      Serial.print(":");
-      Serial.print(timeinfo.tm_min);
-      Serial.print(" ");
+      logln(timeinfo.tm_hour,":",timeinfo.tm_min," ");
     }
 
 
@@ -1153,7 +1167,7 @@ void setup() {
   
   xTaskCreate(freezeWatchdog, "watchdog", 1000, 0, 0, &freezewatchdogTaskHandle);
 
-  espClient.setInsecure();
+  espClient.setInsecure();  //TODO probably should use SSL
   Serial.println("starting WIFI..");
   if(!wm.autoConnect()){  //if there is an available network, wait for connection
     int connectLoopCount = 0;

@@ -19,6 +19,7 @@
         float PID_D_Diff(int lookback_length) const;
         static constexpr size_t size() { return SIZE; }
         int countVal(float val, int lookback) const;
+        int countValMoreThan(float val, int lookback, bool flip) const;
     };
 
 
@@ -96,6 +97,26 @@
             if(frame == val){
                 votes = votes + 1;
             }
+            
+        }
+        return votes;
+    }
+    template <size_t SIZE>
+    int Buffer<SIZE>::countValMoreThan(float val, int lookback, bool flip) const {
+        int votes = 0;
+        for(int i=1; i<=lookback; i++){
+            int index = (this->newest_index - i + this->size()) % this->size();
+            float frame  = this->data[index];
+            if(flip){
+                if(frame < val){
+                    votes = votes + 1;
+                }
+            } else {
+                if(frame > val){
+                    votes = votes + 1;
+                }
+            }
+            
             
         }
         return votes;

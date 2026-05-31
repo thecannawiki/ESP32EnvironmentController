@@ -67,6 +67,64 @@ void updateHeaterPower(){
   ledcWrite(heaterPWMchannel, power);
 }
 
+typedef struct {
+  gpio_num_t pin;
+  volatile float duty_cycle;    //0-1
+  volatile float period_sec;
+} slow_pwm_config_t;
+
+static slow_pwm_config_t pwm_cfg = {
+    .pin        = GPIO_NUM_13,
+    .duty_cycle = 0.3f,   // 30% on
+    .period_sec = 1.0f    // 1-second period
+};
+
+
+static TaskHandle_t hu_pwm_task_handle = NULL;
+
+void slow_pwm_task(void *pvParameters) {
+    slow_pwm_config_t *cfg = (slow_pwm_config_t *)pvParameters;
+
+    gpio_set_direction(cfg->pin, GPIO_MODE_OUTPUT);
+
+    while (true) {
+        uint32_t period_ms  = (uint32_t)(cfg->period_sec * 1000.0f);
+        uint32_t on_time_ms = (uint32_t)(period_ms * cfg->duty_cycle);
+        uint32_t off_time_ms = period_ms - on_time_ms;
+
+        if (on_time_ms > 0) {
+            gpio_set_level(cfg->pin, 1);
+            vTaskDelay(pdMS_TO_TICKS(on_time_ms));
+        }
+
+        if (off_time_ms > 0) {
+            gpio_set_level(cfg->pin, 0);
+            vTaskDelay(pdMS_TO_TICKS(off_time_ms));
+        }
+    }
+}
+
+void updateHumidifierPower(){
+  // if(humidifierPower > heaterMaxPower){ humidifierPower=heaterMaxPower;}
+  // float p = humidifierPower / 100.0f;
+  // int power =  p * maxPWMval;
+  // ledcWrite(humidifierPWMchannel, power);
+
+  float cycle =  humidifierPower /100.f;
+  pwm_cfg.duty_cycle = cycle;
+  if (hu_pwm_task_handle == NULL) {
+    xTaskCreate(
+          slow_pwm_task,      // task function
+          "slow_pwm",         // task name
+          2048,               // stack size (bytes)
+          &pwm_cfg,           // parameters passed to task
+          5,                  // priority
+          &hu_pwm_task_handle
+    );
+  }
+}
+
+
 
 float PIDDTerm(int lookback_length){
 

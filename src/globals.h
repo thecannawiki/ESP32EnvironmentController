@@ -46,10 +46,12 @@ extern bool dehumidifierPrimaryMode;
 extern bool dehumidifierForTemp;
 extern int heaterMaxPower;
 extern float heaterPower;
+extern float humidifierPower;
 extern bool heaterTempMode;
 extern bool autoHeater;
-extern int waterSensor1State;
-extern int waterSensor2State;
+extern float waterSensor1State;
+extern int w2raw;
+extern float w2mean;
 extern bool pumpState;
 extern float fanPower;
 extern float lastPowerVal;
@@ -103,7 +105,7 @@ extern Buffer<64> humidityBuffer;
 extern Buffer<64> tempBuffer;
 extern Buffer<64> errorBuffer;
 extern Buffer<64> w1Buffer;
-extern Buffer<64> w2Buffer;
+extern Buffer<128> w2Buffer;
 extern Buffer<500> fanBuffer;
 extern Buffer<500> heaterStateBuffer;
 extern Buffer<300> humidifierStateBuffer;
@@ -116,6 +118,9 @@ extern float D;
 
 extern float HP;
 extern float HD;
+
+extern float HuVPD_P;
+extern float HuVPD_D;
 
 //time
 extern const char* ntpServer;
@@ -132,8 +137,10 @@ extern int value;
 // setting PWM properties
 extern int freq;
 extern int heaterFreq;
+extern int humidifierFreq;
 extern int fanPWMchannel;
 extern int heaterPWMchannel;
+extern int humidifierPWMchannel;
 extern int resolution;
 extern int maxPWMval;
 extern bool fanChanged;

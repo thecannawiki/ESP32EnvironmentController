@@ -91,7 +91,6 @@ void i2cScan(){
     bool getSensorReadings(){   //This can be done every 5 seconds
         if(sensorPref == SCD4){
             return readScd40();
-        
         }
         else if(sensorPref == BM280_SGP30){
             return readBmeSgp();
@@ -101,7 +100,6 @@ void i2cScan(){
     }
 
 bool checkSensors(){
-
   if(sensorPref == SCD4){
     if(!SCD40Mounted){
       bool ok = initSensors();
@@ -129,8 +127,7 @@ bool checkSensors(){
       return true;
     }
   }
-  
- 
+
 
   if(sensorMountFailCount >= 8){
     Serial.println("Failed to connect sensors >4 times in a row. SAFETY MODE");

@@ -42,6 +42,7 @@ bool dehumidifierPrimaryMode = false; // Primary mode means dehumidifier/humidif
 bool dehumidifierForTemp = false; // The dehumidifier  will operate on bounds around target temperature. This takes precedence over dehumidifier secondary mode when enabled
 int heaterMaxPower = 50;
 float heaterPower = heaterMaxPower;
+float humidifierPower = 0;
 bool heaterTempMode = false;
 bool autoHeater = false;
 bool pumpState = false;
@@ -55,8 +56,9 @@ unsigned long pumpEnd = 0;
 unsigned long pumpStart = 0;
 unsigned long heaterStart = 0;
 unsigned long heaterEnd = 0;
-int waterSensor1State = 0;
-int waterSensor2State = 0;
+float waterSensor1State = 0;
+int w2raw = 0;
+float w2mean = 0;
 
 //settings
 float targetHumidity = 60;  //Sensible default
@@ -98,7 +100,7 @@ Buffer<64> humidityBuffer ;  ///written to every SensorTime
 Buffer<64> tempBuffer;
 Buffer<64> errorBuffer;
 Buffer<64> w1Buffer;
-Buffer<64> w2Buffer;
+Buffer<128> w2Buffer;
 Buffer<500> fanBuffer;   //written to every second
 Buffer<500> heaterStateBuffer;   //written to every second
 Buffer<300> humidifierStateBuffer;   //written to every second
@@ -114,6 +116,9 @@ float HP = 0.1;
 float HD = 0.1;
 float HVPDP = 1; // heater vpd (PID) P term
 float HVPDD = 1; // heater vpd (PID) D term
+float HuVPD_P = 1;
+float HuVPD_D = 1;
+
 
 
 
@@ -132,8 +137,10 @@ int value = 0;
 // setting PWM properties
 int freq = 200000;
 int heaterFreq = 20000;
+int humidifierFreq = 20000;
 int fanPWMchannel = 0;
 int heaterPWMchannel = 1;
+int humidifierPWMchannel = 2;
 int resolution = 10;    //10-bit
 int maxPWMval = 1023;  // for resolution of 10-bit
 bool fanChanged = false;

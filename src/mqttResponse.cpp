@@ -113,7 +113,7 @@ const void handlePumpTimer(const String &message)
     return;
   }
 
-  if (waterSensor1State >= w1maxWaterSensorVal || waterSensor2State >= w2maxWaterSensorVal)
+  if (waterSensor1State >= w1maxWaterSensorVal || w2Buffer.avgOfLastN(32) <= w2maxWaterSensorVal)
   {
     Serial.println("Water sensor(s) detects water! pump disabled");
     char data[60];
@@ -379,6 +379,27 @@ const void handleSetHeaterPID(const String &message){
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
+const void handleSetHumidifierPID(const String &message){
+  int eqIndex = message.indexOf('=');
+  if (eqIndex == -1) return;
+
+  String key = message.substring(0, eqIndex);
+  float value = message.substring(eqIndex + 1).toFloat();
+
+  if(key == "P"){
+    HuVPD_P = value;
+    preferences.putFloat("HuP", HuVPD_P);
+  } else if (key == "D"){
+    HuVPD_D = value;
+    preferences.putFloat("HuD", HuVPD_D);
+  }
+
+  saveToNVM();
+  char data[60];
+  snprintf_P(data, sizeof(data), PSTR("{\"HuP\":%f, \"HuD\":%f}"), HuVPD_P, HuVPD_D);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+}
+
 const void handleSetP(const String &message)
 {
   float num = message.toFloat();
@@ -538,6 +559,22 @@ const void handleHumidifier(const String &message){
   mqttclient.publish(MQTTPUBLISHTOPIC, data);
 }
 
+const void handleSetHumidifierPower(const String &message){
+    float num = message.toFloat();
+
+  if (num > 100){num = 100;}
+  if (num < 0){num = 0;}
+
+  humidifierPower = num;
+  updateHumidifierPower();
+  preferences.putFloat("HuP", humidifierPower);
+  saveToNVM();
+
+  char data[20];
+  snprintf_P(data, sizeof(data), PSTR("{\"HuP\":%f}"), humidifierPower);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+}
+
 const void handleAutoControlMode(const String &message){
   if(message == "VPD"){
     vpdMode=true;
@@ -559,6 +596,7 @@ const void handleAutoControlMode(const String &message){
 
 /////// define function key (2/4)
 const std::string humidifierStateTopicName = "/humidifier";
+const std::string humidifierPowerTopicName = "/humidifier/power";
 const std::string fanPowerTopicName = "/exhaust";
 const std::string setHeaterTopicName = "/heater";
 const std::string setHeaterPowerTopicName = "/heater/power";
@@ -566,6 +604,7 @@ const std::string tempTargetTopicName = "/heater/target";
 const std::string heaterForTempTopicName = "/heater/tempMode";
 const std::string heaterMaxPowerTopicName = "/heater/maxPower";
 const std::string heaterPIDTopicName = "/heater/PID";
+const std::string humidifierPIDTopicName = "/humidifier/PID";
 const std::string fanSoftMax = "/exhaust/softMax";
 const std::string fanSoftMin ="/exhaust/softMin";
 const std::string transpirationMeasurement = "/transTest";
@@ -615,6 +654,8 @@ void mqttSubscribeTopics(std::string MQTTCONTROLTOPIC)
   mqttclient.subscribe((MQTTCONTROLTOPIC + w2ThreshTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + heaterPIDTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + setHeaterPowerTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + humidifierPIDTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + humidifierPowerTopicName).data());
 }
 
 void mqttHandle(char *topic, String message)
@@ -652,6 +693,8 @@ void mqttHandle(char *topic, String message)
   functionDict[w2ThreshTopicName.c_str()] = handleWater2Thresh;
   functionDict[heaterPIDTopicName.c_str()] = handleSetHeaterPID;
   functionDict[setHeaterPowerTopicName.c_str()] = handleSetHeaterPower;
+  functionDict[humidifierPIDTopicName.c_str()] = handleSetHumidifierPID;
+  functionDict[humidifierPowerTopicName.c_str()] = handleSetHumidifierPower;
 
   // Call the corresponding function based on the input
   // std::string topicName = topic;

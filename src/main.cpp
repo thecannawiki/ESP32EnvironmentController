@@ -29,7 +29,6 @@ Hardware support and default pins
 #include <string>
 #include <sensors.h>
 #include <setup_page.h>
-
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
 
@@ -203,6 +202,7 @@ void initNonVolitileMem(){
   // TODO default values are duplicated here
   preferences.begin("controller", false); 
   fanPower = preferences.getFloat("fanPower", 0.0f);
+  fanPowerLimiter = preferences.getFloat("fanPowerLimiter", 1.0f);
   dehumidiferState = preferences.getBool("dehumidifier", dehumidiferState);
   autoHeater = preferences.getBool("autoHeater", autoHeater);
   P = preferences.getFloat("P", 0.4f);
@@ -277,7 +277,8 @@ void longPWMloop(void *parameter){ // 0-1000
 void kickFan(){
   ledcWrite(fanPWMchannel, maxPWMval);
   delay(160);
-  ledcWrite(fanPWMchannel, (0.1 * maxPWMval));
+  float curr_val = map(fanPower *10, 0, 1000, 0, fanPowerLimiter * maxPWMval);
+  ledcWrite(fanPWMchannel, curr_val);
 }
 
 void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-1000 by multiplying by 10
@@ -291,39 +292,40 @@ void updateFanPower(){ /// 0-100 to 1 dp. Value then gets converted to int 0-100
 
   if(powerVal == 0){
     ledcWrite(fanPWMchannel, 0);
-  }
-  powerVal = map(powerVal, 0, 1000, 0, fanSoftMaxPWM);
+  } else{
+    powerVal = map(powerVal, 0, 1000, 0, fanPowerLimiter * maxPWMval);
 
 
-  int moveSize = 200;
-  float fanDiff = powerVal - lastPowerVal;
+    int moveSize = 200;
+    float fanDiff = powerVal - lastPowerVal;
 
-  // Serial.print("diff");
-  // Serial.println(fanDiff);
+    // Serial.print("diff");
+    // Serial.println(fanDiff);
 
-  if(fanDiff > moveSize){
-    Serial.println("ramping up fan");
-    Serial.print(fanDiff/moveSize);
-    Serial.println(" steps");
+    if(fanDiff > moveSize){
+      Serial.println("ramping up fan");
+      Serial.print(fanDiff/moveSize);
+      Serial.println(" steps");
 
-    for(int i=1; i<(fanDiff/moveSize);i++){ //increase fan power in increments of moveSize
-      int val = i*moveSize;
-      Serial.print("fan ramp up ");
-      Serial.println(val);
+      for(int i=1; i<(fanDiff/moveSize);i++){ //increase fan power in increments of moveSize
+        int val = i*moveSize;
+        Serial.print("fan ramp up ");
+        Serial.println(val);
 
-      ledcWrite(fanPWMchannel, map(val, 0, 1000, 0, fanSoftMaxPWM));
-      vTaskDelay(300);
+        ledcWrite(fanPWMchannel, map(val, 0, 1000, 0, fanPowerLimiter * maxPWMval));
+        vTaskDelay(300);
+      }
+    } 
+
+    // Serial.print("prev fan value ");
+    // Serial.print(fanBuffer.avgOfLastN(1));
+    // Serial.print(" ");
+    if(fanBuffer.avgOfLastN(1) <= 4 && fanPower > 4){
+      kickFan();
     }
-  } 
 
-  // Serial.print("prev fan value ");
-  // Serial.print(fanBuffer.avgOfLastN(1));
-  // Serial.print(" ");
-  if(fanBuffer.avgOfLastN(1) <= 4 && fanPower > 4){
-    kickFan();
+    ledcWrite(fanPWMchannel, map(powerVal, 0, 1000, 0, fanPowerLimiter * maxPWMval));
   }
-
-  ledcWrite(fanPWMchannel, map(powerVal, 0, 1000, 0, fanSoftMaxPWM));
 
   preferences.putFloat("fanPower", fanPower);
   saveToNVM();
@@ -608,14 +610,15 @@ bool fanStruggle(){
   int lookback = 500;
   bool fanStruggle = false;
   int votes = 0;
+  float val = 0;
   for(int i=1; i<=lookback; i++){
     int index = (fanBuffer.newest_index - i + fanBuffer.size()) % fanBuffer.size();
-    float val  = fanBuffer.data[index];
-    if(val == softMaxFan){
+    val  = fanBuffer.data[index];
+    if(val >= softMaxFan){
       votes = votes + 1;
     }
   }
-  logln("fan struggle votes", votes);
+  logln("fan struggle votes", votes, "/",lookback);
   if(votes == lookback){
     fanStruggle = true;
   }
@@ -824,7 +827,7 @@ void fanPID(){
       if(newfan < softMinFan){newfan = softMinFan;}
       if(newfan <=0){newfan = 0.0f;}
       if(newfan >=100){newfan = 100;}
-      if(abs(newfan - fanPower) > 0.0f){
+      if(newfan != fanPower){
         Serial.print("new fan power ");
         Serial.println(newfan);
         fanPower=newfan;
@@ -1107,7 +1110,12 @@ void mainloop(void * parameter){
             }
 
             if(automaticFanVpd){
-                fanPID();
+              fanPID();
+              if(loopCounter%sensorTime*3 ==0){  //Every 3 sensor reads check if fan needs a kick start
+                if(fanStruggle()){
+                  kickFan();
+                }
+              }
             }
             if(automaticDehumidifier){
               if(dehumidifierPrimaryMode){
@@ -1373,9 +1381,9 @@ void setup() {
 
   flash3green();
 
-  // restore humidifer state
-  digitalWrite(humidifierControlPin, humidifierState ? HIGH : LOW);
+
   updateFanPower();
+  updateHumidifierPower();
 
   refreshNetworkTime();
   startupMillis = millis();
@@ -1386,7 +1394,7 @@ extern "C" void app_main()
     // initialize arduino library before we start the tasks
     initArduino();
     setup();
-    
+
     xTaskCreatePinnedToCore(mainloop, "main", 24*1024, NULL, 12, NULL, 1);
     xTaskCreate(mqttLoop, "mqttHandler", 4000, 0, 1, &mqttTaskHandle);
     xTaskCreate(freezeWatchdog, "watchdog", 1000, 0, 0, &freezewatchdogTaskHandle);

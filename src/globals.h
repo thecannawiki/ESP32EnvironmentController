@@ -144,7 +144,7 @@ extern int humidifierPWMchannel;
 extern int resolution;
 extern int maxPWMval;
 extern bool fanChanged;
-extern float fanSoftMaxPWM;
+extern float fanPowerLimiter;
 extern float heaterSoftMaxPWM;
 
 

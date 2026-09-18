@@ -23,6 +23,20 @@ const bool onOffToBool(const String &message)
 }
 
 // Function definitions (1/4)
+
+const void handleFanPowerLimiter(const String &message)
+{
+  float num = message.toFloat();
+  if (num > 1.0f){ num = 1.0f;}
+  if (num < 0.0f){ num = 0.0f;}
+  fanPowerLimiter = num;
+  preferences.putFloat("fanPowerLimiter", fanPowerLimiter);
+  saveToNVM();
+  char data[30];
+  snprintf_P(data, sizeof(data), PSTR("{\"fanPowerLimiter\":%f}"), fanPowerLimiter);
+  mqttclient.publish(MQTTPUBLISHTOPIC, data);
+}
+
 const void handleFan(const String &message)
 {
   if (!lockHVAC)
@@ -607,6 +621,7 @@ const std::string heaterPIDTopicName = "/heater/PID";
 const std::string humidifierPIDTopicName = "/humidifier/PID";
 const std::string fanSoftMax = "/exhaust/softMax";
 const std::string fanSoftMin ="/exhaust/softMin";
+const std::string fanPowerLimiterTopicName = "/exhaust/powerLimiter";
 const std::string transpirationMeasurement = "/transTest";
 const std::string dehumidiferToggle = "/dehumidifier/toggle";
 const std::string dehumidiferAuto = "/dehumidifier/auto";
@@ -656,6 +671,7 @@ void mqttSubscribeTopics(std::string MQTTCONTROLTOPIC)
   mqttclient.subscribe((MQTTCONTROLTOPIC + setHeaterPowerTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + humidifierPIDTopicName).data());
   mqttclient.subscribe((MQTTCONTROLTOPIC + humidifierPowerTopicName).data());
+  mqttclient.subscribe((MQTTCONTROLTOPIC + fanPowerLimiterTopicName).data());
 }
 
 void mqttHandle(char *topic, String message)
@@ -695,6 +711,7 @@ void mqttHandle(char *topic, String message)
   functionDict[setHeaterPowerTopicName.c_str()] = handleSetHeaterPower;
   functionDict[humidifierPIDTopicName.c_str()] = handleSetHumidifierPID;
   functionDict[humidifierPowerTopicName.c_str()] = handleSetHumidifierPower;
+  functionDict[fanPowerLimiterTopicName.c_str()] = handleFanPowerLimiter;
 
   // Call the corresponding function based on the input
   // std::string topicName = topic;

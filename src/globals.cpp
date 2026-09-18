@@ -144,7 +144,7 @@ int humidifierPWMchannel = 2;
 int resolution = 10;    //10-bit
 int maxPWMval = 1023;  // for resolution of 10-bit
 bool fanChanged = false;
-float fanSoftMaxPWM = (MAXFANCONTROLLEROUTPUT / 100.0) * maxPWMval;
+float fanPowerLimiter = 1.0f; //0-1, limits the fan power to a percentage of the maxPWMval
 float heaterSoftMaxPWM = (MAXHEATEROUTPUT / 100.0) * maxPWMval;
 
 //global objects
